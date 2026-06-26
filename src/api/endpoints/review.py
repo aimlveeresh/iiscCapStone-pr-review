@@ -92,12 +92,18 @@ async def _run_review(review_id: str) -> None:
         review.total_findings = len(findings)
         review.total_fixes = len([r for r in fix_results if getattr(r, "success", False)])
         review.status = ReviewStatus.COMPLETED
+
+        # Set fix PR URL to the original PR (fixes committed to same branch)
+        if review.total_fixes > 0 and review.pr_info.html_url:
+            review.fix_pr_url = review.pr_info.html_url
+
         await publish_event(review_id, "status_update", {"status": review.status.value})
         logger.info(
             "review_completed",
             pr=f"{review.pr_info.owner}/{review.pr_info.repo}#{review.pr_info.pr_number}",
             findings=review.total_findings,
             fixes=review.total_fixes,
+            fix_pr_url=review.fix_pr_url,
         )
 
     except Exception as exc:  # noqa: BLE001 - catch all, mark as failed

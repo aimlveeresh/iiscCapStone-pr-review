@@ -63,11 +63,11 @@ async def _event_stream(review_id: str) -> AsyncGenerator[str, None]:
                     event_data = task.result()
                     yield f"data: {json.dumps(event_data)}\n\n"
                     # Check if terminal event; if so, close.
-                    if event_data.get("type") == "status_update":
-                        status = event_data.get("status")
-                        if status in {s.value for s in TERMINAL_STATUSES}:
-                            ping_task.cancel()
-                            return
+                    status = event_data.get("status")
+                    if status in {s.value for s in TERMINAL_STATUSES}:
+                        logger.debug("sse_stream_closing", status=status)
+                        ping_task.cancel()
+                        return
     finally:
         # Cleanup.
         if not ping_task.done():
