@@ -3,6 +3,7 @@ import { reviewAPI, ReviewDetail } from '../api/client'
 import { useSSE } from '../hooks/useSSE'
 import { StatusBadge } from '../components/StatusBadge'
 import { FindingsTable } from '../components/FindingsTable'
+import { ProgressStages } from '../components/ProgressStages'
 import { Loader, AlertCircle, GitBranch } from 'lucide-react'
 
 interface ReviewDetailPageProps {
@@ -13,7 +14,7 @@ export const ReviewDetailPage: React.FC<ReviewDetailPageProps> = ({ reviewId }) 
   const [review, setReview] = useState<ReviewDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { events } = useSSE(reviewId)
+  const { events, stages } = useSSE(reviewId)
 
   useEffect(() => {
     const fetchReview = async () => {
@@ -103,6 +104,9 @@ export const ReviewDetailPage: React.FC<ReviewDetailPageProps> = ({ reviewId }) 
           </div>
         </div>
       </div>
+
+      {/* Progress Stages */}
+      <ProgressStages stages={stages} />
 
       {/* Live Stream */}
       {!isTerminal && events.length > 0 && (

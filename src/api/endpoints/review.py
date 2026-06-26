@@ -68,6 +68,7 @@ async def _run_review(review_id: str) -> None:
         input_state = {
             "pr_info": review.pr_info,
             "files": files,
+            "review_id": review_id,
             "status": ReviewStatus.ANALYZING,
             "findings": [],
             "agent_results": {},
