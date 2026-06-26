@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from src.agents.bug_detection.agent import BugDetectionAgent
+from src.agents.deduplication import deduplicate_findings
 from src.agents.fix.agent import FixAgent
 from src.agents.orchestrator.state import PRReviewState
 from src.agents.performance.agent import PerformanceAgent
@@ -164,21 +165,39 @@ async def analyze_performance(state: PRReviewState) -> dict[str, Any]:
 
 
 async def aggregate_findings(state: PRReviewState) -> dict[str, Any]:
-    """Sync point after parallel agents; aggregate results."""
+    """Sync point after parallel agents; deduplicate and aggregate results."""
     review_id = state.get("review_id", "unknown")
     findings = state.get("findings", [])
-    next_status = ReviewStatus.FIXING if findings else ReviewStatus.COMPLETED
+    agent_results = state.get("agent_results", {})
+
+    # Deduplicate similar findings across agents
+    deduplicated_findings, updated_results = deduplicate_findings(findings, agent_results)
+
+    # Log deduplication summary
+    if len(deduplicated_findings) < len(findings):
+        removed_count = len(findings) - len(deduplicated_findings)
+        logger.info(
+            "findings_deduplicated",
+            original_count=len(findings),
+            deduplicated_count=len(deduplicated_findings),
+            removed_count=removed_count,
+        )
+
+    next_status = ReviewStatus.FIXING if deduplicated_findings else ReviewStatus.COMPLETED
     await _publish_event_async(
         review_id,
         "stage_update",
         {
             "stage": "ANALYSIS_COMPLETE",
-            "total_findings": len(findings),
+            "total_findings": len(deduplicated_findings),
+            "deduplicated_from": len(findings),
             "status": next_status.value,
         },
     )
     return {
         "status": next_status,
+        "findings": deduplicated_findings,
+        "agent_results": updated_results,
     }
 
 

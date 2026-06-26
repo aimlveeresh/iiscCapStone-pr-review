@@ -30,6 +30,12 @@ class Confidence(str, Enum):
     LOW = "low"
 
 
+class FindingSource(str, Enum):
+    LLM = "llm"  # Claude LLM generated
+    AST_ANALYZER = "ast_analyzer"  # Python AST static analysis
+    LINTER = "linter"  # Ruff or similar linter
+
+
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -57,6 +63,7 @@ class Finding(BaseModel):
     references: list[str] = Field(default_factory=list)
     cwe_id: str | None = None
     agent_name: str | None = None
+    source: FindingSource = FindingSource.LLM  # Source of the finding (LLM, AST, linter)
     created_at: datetime = Field(default_factory=_utcnow)
 
 

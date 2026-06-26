@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.core.logging import get_logger
-from src.models.finding import Category, Confidence, Finding, Location, Severity
+from src.models.finding import Category, Confidence, Finding, FindingSource, Location, Severity
 
 logger = get_logger(__name__)
 
@@ -78,6 +78,7 @@ def finding_from_dict(item: dict[str, Any], category: Category, file_path: str) 
         suggestion=item.get("suggestion") or item.get("fix"),
         references=_as_list(item.get("references")),
         cwe_id=item.get("cwe_id") or item.get("cwe"),
+        source=FindingSource.LLM,  # LLM-generated findings
     )
 
 
