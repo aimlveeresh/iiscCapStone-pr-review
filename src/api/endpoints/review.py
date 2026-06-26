@@ -90,7 +90,7 @@ async def _run_review(review_id: str) -> None:
                 review.agent_results[agent_name] = AgentResult(**agent_result_dict)
 
         review.total_findings = len(findings)
-        review.total_fixes = len([r for r in fix_results if getattr(r, "success", False)])
+        review.total_fixes = len([r for r in fix_results if r.success])
         review.status = ReviewStatus.COMPLETED
 
         # Set fix PR URL to the original PR (fixes committed to same branch)

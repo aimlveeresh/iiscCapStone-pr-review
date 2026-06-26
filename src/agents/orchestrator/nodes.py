@@ -21,6 +21,7 @@ from src.core.constants import (
 )
 from src.core.logging import get_logger
 from src.models.review import AgentResult, ReviewStatus
+from src.services.git_service import GitService
 
 logger = get_logger(__name__)
 
@@ -221,17 +222,31 @@ async def apply_fixes(state: PRReviewState) -> dict[str, Any]:
         {"stage": "FIXING_START", "status": ReviewStatus.FIXING.value},
     )
 
-    agent = FixAgent()
-    # FixAgent needs GitHub service setup (will be injected in main.py)
-    fix_results, _updated_files = await agent.run(
-        files, findings, pr_info.owner, pr_info.repo, pr_info.head_branch or "main"
-    )
+    async with GitService() as git_service:
+        agent = FixAgent(git=git_service)
+        fix_results, _updated_files = await agent.run(
+            files, findings, pr_info.owner, pr_info.repo, pr_info.head_branch or "main"
+        )
 
-    successful_fixes = len([r for r in fix_results if r.get("success")])
+    successful_fixes = len([r for r in fix_results if r.success])
+
+    if successful_fixes == 0 and findings:
+        logger.info(
+            "fixing_no_fixes_made",
+            findings_count=len(findings),
+            reason="LLM could not safely fix or all findings were non-critical",
+        )
+    elif successful_fixes > 0:
+        logger.info(
+            "fixing_completed",
+            fixes_applied=successful_fixes,
+            total_attempts=len(fix_results),
+        )
+
     await _publish_event_async(
         review_id,
         "stage_update",
-        {"stage": "FIXING_COMPLETE", "fixes_applied": successful_fixes, "status": ReviewStatus.COMPLETED.value},
+        {"stage": "FIXING_COMPLETE", "fixes_applied": successful_fixes, "status": ReviewStatus.FIXING.value},
     )
 
     return {"fix_results": fix_results, "status": ReviewStatus.COMPLETED}
@@ -242,7 +257,7 @@ async def finalize(state: PRReviewState) -> dict[str, Any]:
     review_id = state.get("review_id", "unknown")
     findings = state.get("findings", [])
     fix_results = state.get("fix_results", [])
-    successful_fixes = len([r for r in fix_results if r.get("success")])
+    successful_fixes = len([r for r in fix_results if r.success])
 
     await _publish_event_async(
         review_id,

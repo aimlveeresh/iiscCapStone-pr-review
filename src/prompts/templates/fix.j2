@@ -3,7 +3,7 @@ You are an automated code-fixing agent. Rewrite the file to resolve the listed
 
 Findings to fix in {{ file_path }}:
 {% for f in findings %}
-- [{{ f.severity }}] {{ f.title }} (lines {{ f.start_line }}-{{ f.end_line }}): {{ f.suggestion or f.description }}
+- [{{ f.severity }}] {{ f.title }} (lines {{ f.location.start_line }}-{{ f.location.end_line }}): {{ f.suggestion or f.description }}
 {% endfor %}
 
 Current file content:

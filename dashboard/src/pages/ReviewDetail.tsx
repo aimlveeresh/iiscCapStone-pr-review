@@ -14,7 +14,7 @@ export const ReviewDetailPage: React.FC<ReviewDetailPageProps> = ({ reviewId }) 
   const [review, setReview] = useState<ReviewDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { events, stages } = useSSE(reviewId)
+  const { events, stages } = useSSE(reviewId, true, review?.status)
 
   useEffect(() => {
     const fetchReview = async () => {
@@ -22,6 +22,7 @@ export const ReviewDetailPage: React.FC<ReviewDetailPageProps> = ({ reviewId }) 
         const response = await reviewAPI.getReview(reviewId)
         setReview(response.data)
         setLoading(false)
+        setError(null)
       } catch (err: any) {
         setError(err?.response?.data?.detail || 'Failed to load review')
         setLoading(false)
@@ -29,8 +30,14 @@ export const ReviewDetailPage: React.FC<ReviewDetailPageProps> = ({ reviewId }) 
     }
 
     fetchReview()
-    // Poll every 2 seconds for updates
-    const interval = setInterval(fetchReview, 2000)
+    // Poll every 2 seconds, but stop once review is terminal or on error
+    const interval = setInterval(() => {
+      if (error || (review && ['completed', 'failed'].includes(review.status))) {
+        clearInterval(interval)
+      } else if (review) {
+        fetchReview()
+      }
+    }, 2000)
     return () => clearInterval(interval)
   }, [reviewId])
 
@@ -38,10 +45,25 @@ export const ReviewDetailPage: React.FC<ReviewDetailPageProps> = ({ reviewId }) 
   useEffect(() => {
     if (!review || events.length === 0) return
     const lastEvent = events[events.length - 1]
-    if (lastEvent.status && lastEvent.type === 'status_update') {
+    // Backend publishes "stage_update" events with status field
+    if (lastEvent.status && lastEvent.type === 'stage_update') {
       setReview((prev) => prev ? { ...prev, status: lastEvent.status } : null)
     }
   }, [events])
+
+  // Auto-fetch review one more time when completed to ensure all data is loaded
+  useEffect(() => {
+    if (!review || !['completed', 'failed'].includes(review.status)) return
+    const timer = setTimeout(async () => {
+      try {
+        const response = await reviewAPI.getReview(reviewId)
+        setReview(response.data)
+      } catch (err) {
+        console.error('Failed to fetch final review data:', err)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [review?.status, reviewId])
 
   if (loading) {
     return (
@@ -158,7 +180,7 @@ export const ReviewDetailPage: React.FC<ReviewDetailPageProps> = ({ reviewId }) 
         </div>
       ))}
 
-      {findings.length === 0 && (
+      {findings.length === 0 && isTerminal && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
           <p className="text-green-700 font-semibold">✓ No issues found</p>
           <p className="text-green-600 text-sm mt-1">This PR looks good!</p>

@@ -113,12 +113,18 @@ class FixAgent:
                         result.error = "Fixed code has syntax errors."
                         continue
 
+                # Verify content actually changed (don't commit unchanged code)
+                if fixed_code == code:
+                    result.success = False
+                    result.error = "No actual changes in fixed code."
+                    continue
+
                 to_commit[file_path] = fixed_code
                 updated[file_path] = fixed_code
                 fixed_count += 1
 
         # Commit the fixed files per category.
-        if to_commit:
+        if to_commit and fixed_count > 0:
             try:
                 msg = f"[pr-review] GENAI=YES: fix {category} issues ({fixed_count} files)"
                 sha = await self.git.commit_fixes(owner, repo, branch, to_commit, msg)
@@ -138,6 +144,13 @@ class FixAgent:
                     if result.success:
                         result.success = False
                         result.error = f"Commit failed: {exc}"
+        elif findings:
+            logger.info(
+                "category_skipped_no_fixes",
+                category=category,
+                findings_count=len(findings),
+                fixable_count=fixed_count,
+            )
 
         return results, updated
 
