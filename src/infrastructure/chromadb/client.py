@@ -40,11 +40,7 @@ def _init_client():
         )
         logger.info("chromadb_initialized", mode=mode)
     except ImportError:
-        logger.warning(
-            "chromadb_not_installed",
-            mode=mode,
-            hint="Install RAG support with: pip install -e '.[rag]' or pip install chromadb sentence-transformers",
-        )
+        logger.warning("chromadb_not_installed", hint="Install with: pip install -e '.[rag]'")
         _client = None
         _collection = None
     except Exception as exc:
@@ -63,16 +59,13 @@ def query_knowledge(query: str, top_k: int = 5) -> list[str]:
     """Query the knowledge base for documents matching the query."""
     collection = get_collection()
     if collection is None:
-        logger.debug("chromadb_not_available")
         return []
 
     try:
-        # embeddings will be auto-generated if embed_function is configured.
         results = collection.query(query_texts=[query], n_results=top_k)
         docs = results.get("documents", [[]])[0]
         return docs
-    except Exception as exc:
-        logger.debug("chromadb_query_failed", error=str(exc))
+    except Exception:
         return []
 
 
@@ -80,7 +73,6 @@ def upsert_documents(documents: list[str], metadatas: list[dict] | None = None) 
     """Upsert documents into the knowledge base."""
     collection = get_collection()
     if collection is None:
-        logger.warning("chromadb_not_available_for_upsert")
         return
 
     try:
@@ -90,6 +82,5 @@ def upsert_documents(documents: list[str], metadatas: list[dict] | None = None) 
             ids=ids,
             metadatas=metadatas or [{"source": "owasp"} for _ in documents],
         )
-        logger.info("chromadb_upserted", count=len(documents))
     except Exception as exc:
         logger.error("chromadb_upsert_failed", error=str(exc))

@@ -30,7 +30,6 @@ async def _publish_event_async(review_id: str, event_type: str, data: dict[str, 
     try:
         from src.api.endpoints.sse import publish_event
         await publish_event(review_id, event_type, data)
-        logger.debug("sse_published", review_id=review_id, sse_event=event_type)
     except Exception as exc:
         logger.warning("sse_publish_failed", review_id=review_id, error=str(exc))
 

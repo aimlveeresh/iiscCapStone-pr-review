@@ -39,9 +39,9 @@ def _are_similar(finding1: Finding, finding2: Finding, threshold: float = 0.7) -
     """Check if two findings are similar (likely duplicates)."""
     # Same file and line range?
     if (
-        finding1.file_path == finding2.file_path
-        and finding1.start_line == finding2.start_line
-        and finding1.end_line == finding2.end_line
+        finding1.location.file_path == finding2.location.file_path
+        and finding1.location.start_line == finding2.location.start_line
+        and finding1.location.end_line == finding2.location.end_line
     ):
         # Similar titles?
         title_sim = _similarity(finding1.title, finding2.title)
@@ -107,7 +107,7 @@ def deduplicate_findings(
 
         # Log deduplication
         if len(similar_group) > 1:
-            logger.debug(
+            logger.info(
                 "finding_deduplicated",
                 title=best.title,
                 duplicates_removed=len(similar_group) - 1,

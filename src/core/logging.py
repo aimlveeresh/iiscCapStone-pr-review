@@ -18,6 +18,64 @@ _correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=N
 
 _CONFIGURED = False
 
+# Important log events to show (whitelist)
+IMPORTANT_EVENTS = {
+    # PR & Review
+    "review_created",
+    "review_completed",
+    "review_failed",
+    "review_complete",
+    "fetched_pr_data",
+    "graph_built",
+
+    # Agents & Analysis
+    "agent_run_complete",
+    "findings_deduplicated",
+    "finding_deduplicated",
+
+    # LLM & Services
+    "llm_call",
+    "llm_response",
+
+    # Infrastructure
+    "chromadb_initialized",
+    "chromadb_init_failed",
+    "chromadb_not_installed",
+    "security_rag_retrieved",
+    "security_rag_fallback",
+    "ingest_complete",
+    "ingest_failed",
+
+    # Fixes & Commits
+    "fix_applied",
+    "commit_created",
+    "finding_fixed",
+
+    # Stages
+    "stage_update",
+
+    # Errors & Warnings
+    "warning",
+    "error",
+}
+
+
+def _filter_important_logs(_logger, _method_name, event_dict):
+    """Filter to only show important log events."""
+    event_name = event_dict.get("event", "")
+    log_level = event_dict.get("level", "INFO").upper()
+
+    # Always show WARNING and ERROR logs
+    if log_level in ("WARNING", "ERROR", "CRITICAL"):
+        return True
+
+    # Show important INFO logs
+    if event_name in IMPORTANT_EVENTS:
+        return True
+
+    # Hide everything else (debug, info for unimportant events)
+    return False
+
 
 def set_correlation_id(value: str | None) -> None:
     _correlation_id.set(value)
@@ -57,6 +115,8 @@ def configure_logging(*, level: str = "INFO", json_logs: bool = False) -> None:
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
+            structlog.processors.filter_by_level,
+            structlog.processors.CallsiteParameterAdder(),
             renderer,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
