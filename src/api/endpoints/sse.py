@@ -82,7 +82,7 @@ async def _ping_loop() -> None:
 @router.get("/reviews/{review_id}")
 async def sse_stream(review_id: str):
     """Stream review progress as Server-Sent Events."""
-    logger.info("sse_stream_started", review_id=review_id)
+    logger.debug("sse_stream_started", review_id=review_id)
     return StreamingResponse(
         _event_stream(review_id),
         media_type="text/event-stream",
