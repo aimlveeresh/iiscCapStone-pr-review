@@ -74,7 +74,7 @@ async def _run_review(review_id: str) -> None:
             "fix_results": [],
             "errors": [],
         }
-        result = await asyncio.to_thread(graph.invoke, input_state)
+        result = await graph.ainvoke(input_state)
 
         # Update review with results.
         findings = result.get("findings", [])
