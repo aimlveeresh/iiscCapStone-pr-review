@@ -17,25 +17,25 @@ def _init_client():
         return
 
     settings = get_settings()
-    chromadb = settings.chromadb
-    mode = chromadb.mode.lower()
+    chromadb_config = settings.chromadb
+    mode = chromadb_config.mode.lower()
 
     try:
         if mode == "http":
             import chromadb
 
             _client = chromadb.HttpClient(
-                host=chromadb.host,
-                port=chromadb.port,
+                host=chromadb_config.host,
+                port=chromadb_config.port,
             )
         else:  # embedded (default)
             import chromadb
 
             _client = chromadb.PersistentClient(
-                path=chromadb.persist_dir,
+                path=chromadb_config.persist_dir,
             )
         _collection = _client.get_or_create_collection(
-            name=chromadb.collection,
+            name=chromadb_config.collection,
             metadata={"hnsw:space": "cosine"},
         )
         logger.info("chromadb_initialized", mode=mode)
