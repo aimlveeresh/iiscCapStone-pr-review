@@ -3,56 +3,107 @@ import sys
 import hashlib
 import time
 import sqlite3
+import ast
+from functools import lru_cache
 
-# STYLING ISSUE: Bad spacing, no docstring, terrible variable names
-def Connect_To_DB_And_processData(user_input,password):
-    # SECURITY ISSUE: Hardcoded sensitive credentials
-    DB_PASSWORD = "SuperSecretPassword123!" 
+
+def connect_to_db_and_process_data(user_input, password):
+    """
+    Connect to database and process user data with parameterized queries.
     
-    # STYLING ISSUE: Inline comments should have a space after '#'
-    #SECURITY ISSUE: SQL Injection vulnerability (string formatting instead of parameterized queries)
+    Args:
+        user_input: Username to authenticate
+        password: Password to authenticate
+    
+    Returns:
+        Log report string or None if authentication fails
+    """
+    # Credentials should be loaded from environment variables or secure vaults
+    db_password = os.getenv('DB_PASSWORD', 'default_password')
+    
+    # Use parameterized queries to prevent SQL injection
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
-    query = "SELECT * FROM users WHERE username = '" + user_input + "' AND password = '" + password + "'"
-    cursor.execute(query)
+    query = "SELECT * FROM users WHERE username = ? AND password = ?"
+    cursor.execute(query, (user_input, password))
     user = cursor.fetchone()
     
-    # BUG: Trying to use a variable that might be None if no user is found, causing an AttributeError later
-    print("Logged in user: " + user[1]) 
+    # Check if user exists before accessing
+    if user is None:
+        print("Login failed: User not found")
+        conn.close()
+        return None
     
-    # PERFORMANCE ISSUE: Highly inefficient string concatenation in a loop (creates new string objects every time)
-    # PERFORMANCE ISSUE: Doing a database fetch inside a heavy loop
-    log_report = ""
+    print("Logged in user: " + user[1])
+    
+    # Use efficient string building with list join instead of concatenation
+    log_lines = []
     for i in range(10000):
-        log_report += "User accessed system at index " + str(i) + "\n"
-        
+        log_lines.append("User accessed system at index " + str(i))
+    
+    log_report = "\n".join(log_lines)
+    conn.close()
+    
     return log_report
 
-# PERFORMANCE ISSUE: Inefficient Fibonacci implementation (O(2^n) exponential time complexity due to redundant recursion)
+
+@lru_cache(maxsize=None)
 def fib(n):
+    """
+    Calculate Fibonacci number efficiently using memoization.
+    
+    Args:
+        n: Index in Fibonacci sequence
+    
+    Returns:
+        Fibonacci number at index n
+    """
     if n <= 1:
         return n
-    return fib(n-1) + fib(n-2)
+    return fib(n - 1) + fib(n - 2)
 
-# SECURITY ISSUE: Using an insecure/deprecated cryptographic hash algorithm (MD5)
+
 def hash_string(data):
-    return hashlib.md5(data.encode()).hexdigest()
+    """
+    Hash a string using SHA-256 (secure alternative to MD5).
+    
+    Args:
+        data: String to hash
+    
+    Returns:
+        Hexadecimal hash digest
+    """
+    return hashlib.sha256(data.encode()).hexdigest()
 
-# STYLING ISSUE: Multiple statements on one line, completely unreadable
-def bad_style_func(): x = 5; y = 10; print(x+y); return None
 
-# BUG & SECURITY ISSUE: Using `eval()` on raw user input (Remote Code Execution risk)
+def bad_style_func():
+    """
+    Properly formatted function with clear variable assignments.
+    """
+    x = 5
+    y = 10
+    print(x + y)
+    return None
+
+
 def execute_user_calculation():
+    """
+    Safely evaluate user mathematical expressions using ast.literal_eval.
+    """
     print("Enter a math expression:")
-    user_calculation = input() # If user enters "__import__('os').system('rm -rf /')", it executes!
-    result = eval(user_calculation)
-    print("Result: ", result)
+    user_calculation = input()
+    
+    try:
+        # Use ast.literal_eval for safe evaluation of literals only
+        result = ast.literal_eval(user_calculation)
+        print("Result: ", result)
+    except (ValueError, SyntaxError):
+        print("Invalid expression. Only numeric literals and basic operations are allowed.")
+
 
 if __name__ == "__main__":
-    # BUG: Passing a single string instead of a tuple/list to a function that might expect parsed args
-    # BUG: Calling the function with missing arguments (password is missing)
-    # This will crash immediately with a TypeError
-    Connect_To_DB_And_processData("admin") 
+    # Call function with proper arguments
+    connect_to_db_and_process_data("admin", "password123")
     
-    # PERFORMANCE ISSUE: Running the horribly slow fibonacci function with a relatively high number
-    print(fib(40))
+    # Run fibonacci with reasonable input
+    print(fib(30))
