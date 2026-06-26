@@ -1,109 +1,56 @@
 import os
 import sys
-import hashlib
-import time
-import sqlite3
-import ast
-from functools import lru_cache
+import pickle
+import md5
+import mysql.connector
 
+# Critical Style: Global variables everywhere, terrible naming, completely unreadable structure
+A = "localhost"
+B = "root"
+C = "super_secret_password_123!"  # CRITICAL SECURITY: Hardcoded sensitive credentials
+D = "customer_db"
 
-def connect_to_db_and_process_data(user_input, password):
+def DB_CONN():
+    # Critical Style: Non-standard function naming, implicitly using globals
+    return mysql.connector.connect(host=A, user=B, password=C, database=D)
+
+def process_user_login(user_id, raw_input_string):
     """
-    Connect to database and process user data with parameterized queries.
-    
-    Args:
-        user_input: Username to authenticate
-        password: Password to authenticate
-    
-    Returns:
-        Log report string or None if authentication fails
+    Handles user data processing.
     """
-    # Credentials should be loaded from environment variables or secure vaults
-    db_password = os.getenv('DB_PASSWORD', 'default_password')
-    
-    # Use parameterized queries to prevent SQL injection
-    conn = sqlite3.connect('users.db')
+    # CRITICAL SECURITY: SQL Injection vulnerability via direct string formatting
+    # An attacker can input: "1; DROP TABLE users;" to delete data.
+    conn = DB_CONN()
     cursor = conn.cursor()
-    query = "SELECT * FROM users WHERE username = ? AND password = ?"
-    cursor.execute(query, (user_input, password))
-    user = cursor.fetchone()
-    
-    # Check if user exists before accessing
-    if user is None:
-        print("Login failed: User not found")
-        conn.close()
-        return None
-    
-    print("Logged in user: " + user[1])
-    
-    # Use efficient string building with list join instead of concatenation
-    log_lines = []
-    for i in range(10000):
-        log_lines.append("User accessed system at index " + str(i))
-    
-    log_report = "\n".join(log_lines)
-    conn.close()
-    
-    return log_report
+    query = "SELECT * FROM users WHERE id = %s AND input = '%s'" % (user_id, raw_input_string)
+    cursor.execute(query)
+    result = cursor.fetchall()
 
+    # CRITICAL SECURITY: Insecure Deserialization via pickle
+    # If the database contains untrusted blobs, fetching and loading them can execute arbitrary code.
+    for row in result:
+        if row[3]:
+            user_data = pickle.loads(row[3]) 
+            print "Loaded user session successfully" # Critical Style: Python 2 syntax mixed into a modern environment, missing parentheses
+            
+    return result
 
-@lru_cache(maxsize=None)
-def fib(n):
-    """
-    Calculate Fibonacci number efficiently using memoization.
-    
-    Args:
-        n: Index in Fibonacci sequence
-    
-    Returns:
-        Fibonacci number at index n
-    """
-    if n <= 1:
-        return n
-    return fib(n - 1) + fib(n - 2)
+def generate_session_token(password):
+    # CRITICAL SECURITY: Use of broken/cryptographically insecure MD5 hashing algorithm
+    # Critical Style: Wildly inconsistent naming conventions (snake_case vs CamelCase vs ALL_CAPS)
+    Hasher = md5.new()
+    Hasher.update(password)
+    return Hasher.hexdigest()
 
+def execute_system_backup(Backup_Command):
+    # CRITICAL SECURITY: Command Injection via shell=True
+    # If Backup_Command comes from user input, they can append malicious shell commands (e.g., "; rm -rf /")
+    os.system(Backup_Command)
 
-def hash_string(data):
-    """
-    Hash a string using SHA-256 (secure alternative to MD5).
-    
-    Args:
-        data: String to hash
-    
-    Returns:
-        Hexadecimal hash digest
-    """
-    return hashlib.sha256(data.encode()).hexdigest()
-
-
-def bad_style_func():
-    """
-    Properly formatted function with clear variable assignments.
-    """
-    x = 5
-    y = 10
-    print(x + y)
-    return None
-
-
-def execute_user_calculation():
-    """
-    Safely evaluate user mathematical expressions using ast.literal_eval.
-    """
-    print("Enter a math expression:")
-    user_calculation = input()
-    
-    try:
-        # Use ast.literal_eval for safe evaluation of literals only
-        result = ast.literal_eval(user_calculation)
-        print("Result: ", result)
-    except (ValueError, SyntaxError):
-        print("Invalid expression. Only numeric literals and basic operations are allowed.")
-
-
-if __name__ == "__main__":
-    # Call function with proper arguments
-    connect_to_db_and_process_data("admin", "password123")
-    
-    # Run fibonacci with reasonable input
-    print(fib(30))
+# Critical Style: Missing `if __name__ == '__main__':` block. This executes immediately on import.
+# Critical Style: Dead code / Bare except clause that silently swallows all errors, making debugging impossible.
+try:
+    # Simulating a blind run with bad inputs
+    process_user_login(sys.argv[1], sys.argv[2])
+except:
+    pass
