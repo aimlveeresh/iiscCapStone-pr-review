@@ -5,6 +5,9 @@ import subprocess
 import bcrypt
 import mysql.connector
 
+# Whitelist of permitted database hosts
+ALLOWED_DB_HOSTS = ['localhost', '127.0.0.1', '192.168.1.10', 'db.internal.example.com']
+
 # Database configuration from environment variables
 DB_HOST = os.environ.get('DB_HOST', 'localhost')
 DB_USER = os.environ.get('DB_USER', 'root')
@@ -13,6 +16,10 @@ DB_NAME = os.environ.get('DB_NAME', 'customer_db')
 
 if not DB_PASSWORD:
     raise ValueError("DB_PASSWORD environment variable must be set")
+
+# Validate DB_HOST against whitelist to prevent SSRF
+if DB_HOST not in ALLOWED_DB_HOSTS:
+    raise ValueError(f"Invalid DB_HOST '{DB_HOST}'. Must be one of: {', '.join(ALLOWED_DB_HOSTS)}")
 
 def db_conn():
     """Establish database connection with credentials from environment variables."""
