@@ -34,19 +34,21 @@ def process_user_login(user_id, raw_input_string):
     """
     Handles user data processing with parameterized queries and safe deserialization.
     """
-    conn = db_conn()
-    cursor = conn.cursor()
-    
-    # Use parameterized query to prevent SQL injection
-    query = "SELECT * FROM users WHERE id = %s AND input = %s"
-    cursor.execute(query, (user_id, raw_input_string))
-    result = cursor.fetchall()
-    cursor.close()
-    conn.close()
+    try:
+        conn = db_conn()
+        cursor = conn.cursor()
+        
+        # Use parameterized query to prevent SQL injection
+        query = "SELECT * FROM users WHERE id = %s AND input = %s"
+        cursor.execute(query, (user_id, raw_input_string))
+        result = cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
 
     # Safe deserialization using JSON instead of pickle
     for row in result:
-        if row[3]:
+        if len(row) > 3 and row[3]:
             try:
                 user_data = json.loads(row[3])
                 print("Loaded user session successfully")
@@ -66,6 +68,7 @@ def generate_session_token(password):
 def execute_system_backup(backup_command):
     """
     Execute system backup safely using subprocess with allowlist validation.
+    Returns True on success, False on failure.
     """
     # Allowlist of permitted backup commands
     permitted_commands = ['/usr/bin/backup', '/opt/backup/backup.sh']
@@ -77,10 +80,13 @@ def execute_system_backup(backup_command):
     # Use subprocess.run with shell=False to prevent command injection
     try:
         subprocess.run([backup_command], shell=False, check=True, timeout=300)
+        return True
     except subprocess.CalledProcessError as e:
         print(f"Backup failed with error: {e}")
+        return False
     except subprocess.TimeoutExpired:
         print("Backup command timed out")
+        return False
 
 if __name__ == '__main__':
     try:
