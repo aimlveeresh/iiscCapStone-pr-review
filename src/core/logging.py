@@ -60,21 +60,21 @@ IMPORTANT_EVENTS = {
 }
 
 
-def _filter_important_logs(_logger, _method_name, event_dict):
+def _filter_logs(_logger, _method_name, event_dict):
     """Filter to only show important log events."""
     event_name = event_dict.get("event", "")
-    log_level = event_dict.get("level", "INFO").upper()
+    log_level = event_dict.get("level", "").upper()
 
     # Always show WARNING and ERROR logs
     if log_level in ("WARNING", "ERROR", "CRITICAL"):
-        return True
+        return event_dict
 
     # Show important INFO logs
     if event_name in IMPORTANT_EVENTS:
-        return True
+        return event_dict
 
     # Hide everything else (debug, info for unimportant events)
-    return False
+    return None
 
 
 def set_correlation_id(value: str | None) -> None:
@@ -115,8 +115,7 @@ def configure_logging(*, level: str = "INFO", json_logs: bool = False) -> None:
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
-            structlog.processors.filter_by_level,
-            structlog.processors.CallsiteParameterAdder(),
+            _filter_logs,  # Custom filter for important events only
             renderer,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
