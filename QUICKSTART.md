@@ -108,6 +108,27 @@ All 4 agents run **in parallel** → typical review = 30–60 seconds.
 - **[docs/USER_FLOWS.md](docs/USER_FLOWS.md)** — Integration examples
 - **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)** — What was built
 
+## 🔍 RAG / Knowledge Base (Optional)
+
+**ChromaDB is optional.** The system works without it but performs better with it:
+
+- **Without ChromaDB**: Uses hardcoded OWASP security knowledge (fallback)
+- **With ChromaDB**: Retrieves RAG vectors from full OWASP database
+
+### Install RAG Support
+```bash
+# Option 1: Install all optional deps
+pip install -e '.[rag]'
+
+# Option 2: Just ChromaDB + embeddings
+pip install chromadb sentence-transformers
+
+# Option 3: Ingest OWASP docs (after install)
+make ingest
+```
+
+If you see `chromadb_not_installed` in logs → RAG is skipped, security checks still work with fallback knowledge.
+
 ## 🐛 Troubleshooting
 
 | Problem | Fix |
@@ -117,6 +138,7 @@ All 4 agents run **in parallel** → typical review = 30–60 seconds.
 | "PR not found" | Use a **real, public** PR URL |
 | "SSE not updating" | Reload browser (Cmd+R / Ctrl+R) |
 | "Backend not running" | `curl http://localhost:8000/health` |
+| "chromadb_not_installed" | Optional—falls back to hardcoded OWASP knowledge. Install with: `pip install -e '.[rag]'` |
 
 ## 📊 Performance
 

@@ -39,6 +39,14 @@ def _init_client():
             metadata={"hnsw:space": "cosine"},
         )
         logger.info("chromadb_initialized", mode=mode)
+    except ImportError:
+        logger.warning(
+            "chromadb_not_installed",
+            mode=mode,
+            hint="Install RAG support with: pip install -e '.[rag]' or pip install chromadb sentence-transformers",
+        )
+        _client = None
+        _collection = None
     except Exception as exc:
         logger.error("chromadb_init_failed", error=str(exc), mode=mode)
         _client = None

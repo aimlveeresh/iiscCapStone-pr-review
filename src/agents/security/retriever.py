@@ -36,7 +36,14 @@ class SecurityRetriever:
         docs = self._query_chromadb(query)
         if not docs:
             docs = _FALLBACK_KNOWLEDGE[: self.top_k]
-            logger.info("security_rag_fallback", used="hardcoded", count=len(docs))
+            logger.debug(
+                "security_rag_fallback",
+                source="hardcoded_owasp",
+                count=len(docs),
+                reason="chromadb_unavailable_or_empty",
+            )
+        else:
+            logger.debug("security_rag_retrieved", source="chromadb", count=len(docs))
         return "\n".join(f"- {d}" for d in docs)
 
     def _query_chromadb(self, query: str) -> list[str]:
