@@ -1,56 +1,86 @@
 import os
 import sys
-import pickle
-import md5
+import json
+import subprocess
+import bcrypt
 import mysql.connector
 
-# Critical Style: Global variables everywhere, terrible naming, completely unreadable structure
-A = "localhost"
-B = "root"
-C = "super_secret_password_123!"  # CRITICAL SECURITY: Hardcoded sensitive credentials
-D = "customer_db"
+# Database configuration from environment variables
+DB_HOST = os.environ.get('DB_HOST', 'localhost')
+DB_USER = os.environ.get('DB_USER', 'root')
+DB_PASSWORD = os.environ.get('DB_PASSWORD')
+DB_NAME = os.environ.get('DB_NAME', 'customer_db')
 
-def DB_CONN():
-    # Critical Style: Non-standard function naming, implicitly using globals
-    return mysql.connector.connect(host=A, user=B, password=C, database=D)
+if not DB_PASSWORD:
+    raise ValueError("DB_PASSWORD environment variable must be set")
+
+def db_conn():
+    """Establish database connection with credentials from environment variables."""
+    return mysql.connector.connect(
+        host=DB_HOST,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME
+    )
 
 def process_user_login(user_id, raw_input_string):
     """
-    Handles user data processing.
+    Handles user data processing with parameterized queries and safe deserialization.
     """
-    # CRITICAL SECURITY: SQL Injection vulnerability via direct string formatting
-    # An attacker can input: "1; DROP TABLE users;" to delete data.
-    conn = DB_CONN()
+    conn = db_conn()
     cursor = conn.cursor()
-    query = "SELECT * FROM users WHERE id = %s AND input = '%s'" % (user_id, raw_input_string)
-    cursor.execute(query)
+    
+    # Use parameterized query to prevent SQL injection
+    query = "SELECT * FROM users WHERE id = %s AND input = %s"
+    cursor.execute(query, (user_id, raw_input_string))
     result = cursor.fetchall()
+    cursor.close()
+    conn.close()
 
-    # CRITICAL SECURITY: Insecure Deserialization via pickle
-    # If the database contains untrusted blobs, fetching and loading them can execute arbitrary code.
+    # Safe deserialization using JSON instead of pickle
     for row in result:
         if row[3]:
-            user_data = pickle.loads(row[3]) 
-            print "Loaded user session successfully" # Critical Style: Python 2 syntax mixed into a modern environment, missing parentheses
+            try:
+                user_data = json.loads(row[3])
+                print("Loaded user session successfully")
+            except (json.JSONDecodeError, ValueError) as e:
+                print(f"Failed to deserialize user data: {e}")
             
     return result
 
 def generate_session_token(password):
-    # CRITICAL SECURITY: Use of broken/cryptographically insecure MD5 hashing algorithm
-    # Critical Style: Wildly inconsistent naming conventions (snake_case vs CamelCase vs ALL_CAPS)
-    Hasher = md5.new()
-    Hasher.update(password)
-    return Hasher.hexdigest()
+    """
+    Generate secure password hash using bcrypt instead of MD5.
+    """
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
-def execute_system_backup(Backup_Command):
-    # CRITICAL SECURITY: Command Injection via shell=True
-    # If Backup_Command comes from user input, they can append malicious shell commands (e.g., "; rm -rf /")
-    os.system(Backup_Command)
+def execute_system_backup(backup_command):
+    """
+    Execute system backup safely using subprocess with allowlist validation.
+    """
+    # Allowlist of permitted backup commands
+    permitted_commands = ['/usr/bin/backup', '/opt/backup/backup.sh']
+    
+    # Validate against allowlist
+    if backup_command not in permitted_commands:
+        raise ValueError(f"Backup command '{backup_command}' is not in the permitted list")
+    
+    # Use subprocess.run with shell=False to prevent command injection
+    try:
+        subprocess.run([backup_command], shell=False, check=True, timeout=300)
+    except subprocess.CalledProcessError as e:
+        print(f"Backup failed with error: {e}")
+    except subprocess.TimeoutExpired:
+        print("Backup command timed out")
 
-# Critical Style: Missing `if __name__ == '__main__':` block. This executes immediately on import.
-# Critical Style: Dead code / Bare except clause that silently swallows all errors, making debugging impossible.
-try:
-    # Simulating a blind run with bad inputs
-    process_user_login(sys.argv[1], sys.argv[2])
-except:
-    pass
+if __name__ == '__main__':
+    try:
+        if len(sys.argv) < 3:
+            print("Usage: python messy_python.py <user_id> <input_string>")
+            sys.exit(1)
+        process_user_login(sys.argv[1], sys.argv[2])
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        sys.exit(1)
