@@ -34,17 +34,16 @@ def process_user_login(user_id, raw_input_string):
     """
     Handles user data processing with parameterized queries and safe deserialization.
     """
-    try:
-        conn = db_conn()
-        cursor = conn.cursor()
-        
-        # Use parameterized query to prevent SQL injection
-        query = "SELECT * FROM users WHERE id = %s AND input = %s"
-        cursor.execute(query, (user_id, raw_input_string))
-        result = cursor.fetchall()
-    finally:
-        cursor.close()
-        conn.close()
+    result = []
+    
+    # Use context managers to ensure proper resource cleanup on all code paths
+    with db_conn() as conn:
+        with conn.cursor() as cursor:
+            # Use parameterized query to prevent SQL injection
+            # Add LIMIT clause to prevent unbounded result set fetching
+            query = "SELECT * FROM users WHERE id = %s AND input = %s LIMIT 1000"
+            cursor.execute(query, (user_id, raw_input_string))
+            result = cursor.fetchall()
 
     # Safe deserialization using JSON instead of pickle
     for row in result:
