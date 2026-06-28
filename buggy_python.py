@@ -6,7 +6,61 @@ import sqlite3
 import ast
 import bcrypt
 
-# Database connection with parameterized queries and environment-based credentials
+# Database connection
+def connect_db():
+    """
+    Establish database connection.
+    
+    Returns:
+        SQLite connection object
+    """
+    conn = sqlite3.connect('users.db')
+    return conn
+
+# SECURITY FIX: Credentials from environment variables
+def authenticate_user(user_input, password):
+    """
+    Authenticate user against database.
+    
+    Args:
+        user_input: Username to authenticate
+        password: Password to verify
+    
+    Returns:
+        User tuple if authentication succeeds, None otherwise
+    """
+    db_password = os.getenv('DB_PASSWORD', '')
+    if not db_password:
+        raise ValueError('DB_PASSWORD environment variable not set')
+    
+    # SECURITY FIX: Use parameterized queries to prevent SQL injection
+    conn = connect_db()
+    cursor = conn.cursor()
+    query = "SELECT * FROM users WHERE username = ? AND password = ?"
+    cursor.execute(query, (user_input, password))
+    user = cursor.fetchone()
+    conn.close()
+    
+    return user
+
+# PERFORMANCE FIX: Generate activity log separately
+def generate_activity_log(user_id):
+    """
+    Generate activity log for user.
+    
+    Args:
+        user_id: ID of user to generate log for
+    
+    Returns:
+        Log report string
+    """
+    # PERFORMANCE FIX: Use list join instead of string concatenation in loop
+    log_lines = []
+    for i in range(10000):
+        log_lines.append("User accessed system at index " + str(i))
+    log_report = "\n".join(log_lines)
+    return log_report
+
 def connect_to_db_and_process_data(user_input, password):
     """
     Authenticate user and process data securely.
@@ -18,33 +72,18 @@ def connect_to_db_and_process_data(user_input, password):
     Returns:
         Log report string or None if authentication fails
     """
-    # SECURITY FIX: Credentials from environment variables
-    db_password = os.getenv('DB_PASSWORD', '')
-    if not db_password:
-        raise ValueError('DB_PASSWORD environment variable not set')
-    
-    # SECURITY FIX: Use parameterized queries to prevent SQL injection
-    conn = sqlite3.connect('users.db')
-    cursor = conn.cursor()
-    query = "SELECT * FROM users WHERE username = ? AND password = ?"
-    cursor.execute(query, (user_input, password))
-    user = cursor.fetchone()
+    user = authenticate_user(user_input, password)
     
     # BUG FIX: Check if user exists before accessing
     if user is None:
         print("Authentication failed: User not found")
-        conn.close()
         return None
     
-    print("Logged in user: " + user[1])
+    # BUG FIX: Null check before accessing user[1]
+    if user:
+        print("Logged in user: " + user[1])
     
-    # PERFORMANCE FIX: Use list join instead of string concatenation in loop
-    log_lines = []
-    for i in range(10000):
-        log_lines.append("User accessed system at index " + str(i))
-    log_report = "\n".join(log_lines)
-    
-    conn.close()
+    log_report = generate_activity_log(user[0])
     return log_report
 
 # PERFORMANCE FIX: Efficient Fibonacci with memoization
