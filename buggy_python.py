@@ -5,6 +5,7 @@ import time
 import sqlite3
 import ast
 import bcrypt
+import functools
 
 # Database connection
 def connect_db():
@@ -57,7 +58,7 @@ def generate_activity_log(user_id):
     # PERFORMANCE FIX: Use list join instead of string concatenation in loop
     log_lines = []
     for i in range(10000):
-        log_lines.append("User accessed system at index " + str(i))
+        log_lines.append(f"User accessed system at index {i}")
     log_report = "\n".join(log_lines)
     return log_report
 
@@ -87,25 +88,20 @@ def connect_to_db_and_process_data(user_input, password):
     return log_report
 
 # PERFORMANCE FIX: Efficient Fibonacci with memoization
-def fib(n, memo=None):
+@functools.lru_cache(maxsize=None)
+def fib(n):
     """
     Calculate Fibonacci number efficiently using memoization.
     
     Args:
         n: Fibonacci index
-        memo: Memoization dictionary
     
     Returns:
         Fibonacci number at index n
     """
-    if memo is None:
-        memo = {}
-    if n in memo:
-        return memo[n]
     if n <= 1:
         return n
-    memo[n] = fib(n - 1, memo) + fib(n - 2, memo)
-    return memo[n]
+    return fib(n - 1) + fib(n - 2)
 
 # SECURITY FIX: Use SHA256 for general hashing, bcrypt for passwords
 def hash_string(data):
