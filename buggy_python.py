@@ -30,7 +30,7 @@ def authenticate_user(user_input, password):
     Returns:
         User tuple if authentication succeeds, None otherwise
     """
-    db_password = os.getenv('DB_PASSWORD') or (_ for _ in ()).throw(ValueError('DB_PASSWORD environment variable not set'))
+    db_password = os.getenv('DB_PASSWORD')
     if not db_password:
         raise ValueError('DB_PASSWORD environment variable not set')
     
@@ -160,9 +160,12 @@ def execute_user_calculation():
         print("Invalid expression. Only literal values are allowed.")
 
 if __name__ == "__main__":
-    # BUG FIX: Provide both required arguments
-    # Note: In production, credentials should come from secure sources
-    connect_to_db_and_process_data(os.getenv('TEST_USER') or (_ for _ in ()).throw(ValueError('TEST_USER not set')), os.getenv('TEST_PASS') or (_ for _ in ()).throw(ValueError('TEST_PASS not set')))
+    # BUG FIX: Replace unsafe generator throw expressions with explicit checks
+    user = os.getenv('TEST_USER')
+    password = os.getenv('TEST_PASS')
+    if not user or not password:
+        raise ValueError('TEST_USER and TEST_PASS must be set')
+    connect_to_db_and_process_data(user, password)
     
     # PERFORMANCE FIX: Use reasonable input for efficient Fibonacci
     print(fib(30))
