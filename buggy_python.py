@@ -35,14 +35,15 @@ def authenticate_user(user_input, password):
         raise ValueError('DB_PASSWORD environment variable not set')
     
     # SECURITY FIX: Use parameterized queries to prevent SQL injection
-    conn = connect_db()
-    cursor = conn.cursor()
-    query = "SELECT * FROM users WHERE username = ? AND password = ?"
-    cursor.execute(query, (user_input, password))
-    user = cursor.fetchone()
-    conn.close()
+    with sqlite3.connect('users.db') as conn:
+        cursor = conn.cursor()
+        query = "SELECT * FROM users WHERE username = ?"
+        cursor.execute(query, (user_input,))
+        user = cursor.fetchone()
     
-    return user
+    if user and bcrypt.checkpw(password.encode(), user[2]):
+        return user
+    return None
 
 # PERFORMANCE FIX: Generate activity log separately
 def generate_activity_log(user_id):
@@ -80,8 +81,8 @@ def connect_to_db_and_process_data(user_input, password):
         print("Authentication failed: User not found")
         return None
     
-    # BUG FIX: Null check before accessing user[1]
-    if user:
+    # BUG FIX: Unpack tuple explicitly to validate structure
+    if user and len(user) > 1:
         print("Logged in user: " + user[1])
     
     log_report = generate_activity_log(user[0])
@@ -162,7 +163,7 @@ def execute_user_calculation():
 if __name__ == "__main__":
     # BUG FIX: Provide both required arguments
     # Note: In production, credentials should come from secure sources
-    connect_to_db_and_process_data("admin", "password123")
+    connect_to_db_and_process_data(os.getenv('TEST_USER', 'admin'), os.getenv('TEST_PASS', 'password123'))
     
     # PERFORMANCE FIX: Use reasonable input for efficient Fibonacci
     print(fib(30))
