@@ -77,13 +77,12 @@ def connect_to_db_and_process_data(user_input, password):
     user = authenticate_user(user_input, password)
     
     # BUG FIX: Check if user exists before accessing
-    if user is None:
+    if not user or len(user) <= 1:
         print("Authentication failed: User not found")
         return None
     
     # BUG FIX: Unpack tuple explicitly to validate structure
-    if user and len(user) > 1:
-        print("Logged in user: " + user[1])
+    print("Logged in user: " + user[1])
     
     log_report = generate_activity_log(user[0])
     return log_report
