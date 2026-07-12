@@ -76,8 +76,8 @@ def connect_to_db_and_process_data(user_input, password):
     """
     user = authenticate_user(user_input, password)
     
-    # BUG FIX: Check if user exists before accessing
-    if not user or len(user) <= 1:
+    # BUG FIX: Check if user exists and has at least 2 elements before accessing user[0] and user[1]
+    if not user or len(user) < 2:
         print("Authentication failed: User not found")
         return None
     
