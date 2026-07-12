@@ -46,19 +46,23 @@ def authenticate_user(user_input, password):
     return None
 
 # PERFORMANCE FIX: Generate activity log separately
-def generate_activity_log(user_id):
+def generate_activity_log(user_id, max_lines=None):
     """
     Generate activity log for user.
     
     Args:
         user_id: ID of user to generate log for
+        max_lines: Maximum number of log lines to generate (default: 100)
     
     Returns:
         Log report string
     """
-    # PERFORMANCE FIX: Use list join instead of string concatenation in loop
+    if max_lines is None:
+        max_lines = 100
+    
+    # PERFORMANCE FIX: Use configurable limit instead of unbounded 10000 lines
     log_lines = []
-    for i in range(10000):
+    for i in range(max_lines):
         log_lines.append(f"User accessed system at index {i}")
     log_report = "\n".join(log_lines)
     return log_report
