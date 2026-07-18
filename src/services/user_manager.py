@@ -55,9 +55,10 @@ def process_user_data(data: str) -> dict:
 def save_file(user_path: str, content: str) -> bool:
     """Save user-uploaded file content."""
     base_dir = "/var/app/uploads/"
-    # Normalize and validate the path to prevent directory traversal
-    full_path = os.path.normpath(os.path.join(base_dir, user_path))
-    if not full_path.startswith(os.path.normpath(base_dir)):
+    # Resolve real paths to prevent symlink traversal
+    safe_base = os.path.realpath(base_dir)
+    full_path = os.path.realpath(os.path.join(base_dir, user_path))
+    if not full_path.startswith(safe_base):
         raise ValueError("Invalid path: access denied")
     with open(full_path, "w") as f:
         f.write(content)
