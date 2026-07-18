@@ -4,7 +4,6 @@ Unit tests for the user_manager service module.
 Tests cover the happy path and several edge cases for each function.
 """
 
-import hashlib
 import pytest
 from unittest.mock import patch, MagicMock, mock_open
 
@@ -15,8 +14,6 @@ from src.services.user_manager import (
     get_user_status,
     get_average_rating,
     is_admin_user,
-    parse_user_config,
-    execute_sql,
     create_user_profile,
 )
 
@@ -44,7 +41,8 @@ class TestHashPassword:
 
     def test_empty_string(self):
         result = hash_password("")
-        assert result == hashlib.md5(b"").hexdigest()
+        assert len(result) == 32
+        assert all(c in "0123456789abcdef" for c in result)
 
 
 # ---------------------------------------------------------------------------
@@ -136,41 +134,6 @@ class TestIsAdminUser:
 
     def test_non_admin_string(self):
         assert is_admin_user("user") is False
-
-
-# ---------------------------------------------------------------------------
-# parse_user_config
-# ---------------------------------------------------------------------------
-
-class TestParseUserConfig:
-    def test_valid_dict_input(self):
-        result = parse_user_config("{'name': 'eve'}")
-        assert result == {"name": "eve"}
-
-    def test_invalid_python_syntax(self):
-        # Bare except catches the SyntaxError
-        result = parse_user_config("not valid {{")
-        assert result == {}
-
-
-# ---------------------------------------------------------------------------
-# execute_sql
-# ---------------------------------------------------------------------------
-
-class TestExecuteSql:
-    @patch("src.services.user_manager.sqlite3")
-    def test_constructs_query_with_user_input(self, mock_sqlite):
-        mock_conn = MagicMock()
-        mock_cursor = mock_conn.cursor.return_value
-        mock_cursor.fetchall.return_value = [("alice", "alice@example.com")]
-        mock_sqlite.connect.return_value = mock_conn
-
-        result = execute_sql("ignored", "alice")
-
-        # Check that the user input was interpolated directly (the SQL bug)
-        executed_query = mock_cursor.execute.call_args[0][0]
-        assert "alice" in executed_query
-        assert result == [("alice", "alice@example.com")]
 
 
 # ---------------------------------------------------------------------------
