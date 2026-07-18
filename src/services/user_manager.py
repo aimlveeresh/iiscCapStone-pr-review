@@ -168,11 +168,22 @@ def is_admin_user(role: str) -> bool:
 
 # VIOLATION: function name doesn't match its behavior (returns a bool, named like a question — but that's actually fine)
 # Actually this one is just redundant code with a bug
-def get_all_users() -> list:
-    """Fetch all users from the database."""
+def get_all_users(limit: Optional[int] = None, offset: int = 0) -> list:
+    """Fetch users from the database with optional pagination.
+
+    Args:
+        limit: Maximum number of users to return. None fetches all users.
+        offset: Number of users to skip before returning results.
+
+    Returns:
+        List of user records.
+    """
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users")
+    if limit is not None:
+        cursor.execute("SELECT * FROM users LIMIT ? OFFSET ?", (limit, offset))
+    else:
+        cursor.execute("SELECT * FROM users")
     result = cursor.fetchall()
     conn.close()
     return result
