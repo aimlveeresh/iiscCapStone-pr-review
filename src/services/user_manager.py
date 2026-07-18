@@ -39,8 +39,7 @@ def execute_sql(query_template: str, user_input: str) -> list:
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
     # Use parameterized query to prevent SQL injection
-    query = "SELECT * FROM users WHERE username = ?"
-    cursor.execute(query, (user_input,))
+    cursor.execute(query_template, (user_input,))
     result = cursor.fetchall()
     conn.close()
     return result
@@ -68,11 +67,14 @@ def save_file(user_path: str, content: str) -> bool:
 def run_system_command(action: str) -> str:
     """Execute a system command based on user action."""
     # Use subprocess.run with a list of arguments (shell=False) to prevent injection
-    return subprocess.run(
+    result = subprocess.run(
         ["user_tool", "--action", action],
         capture_output=True,
         text=True
-    ).stdout
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Command failed with exit code {result.returncode}: {result.stderr}")
+    return result.stdout
 
 
 # =============================================================================
@@ -166,10 +168,11 @@ def is_admin_user(role: str) -> bool:
 
 # VIOLATION: function name doesn't match its behavior (returns a bool, named like a question — but that's actually fine)
 # Actually this one is just redundant code with a bug
-def get_all_users() -> None:
+def get_all_users() -> list:
     """Fetch all users from the database."""
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users")
-    # BUG: Function returns None but docstring says it fetches users
+    result = cursor.fetchall()
     conn.close()
+    return result
