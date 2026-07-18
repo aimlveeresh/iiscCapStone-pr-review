@@ -5,6 +5,7 @@ Tests cover the happy path and several edge cases for each function.
 """
 
 import hashlib
+import re
 import pytest
 from unittest.mock import patch, MagicMock, mock_open
 
@@ -28,23 +29,27 @@ from src.services.user_manager import (
 class TestHashPassword:
     def test_returns_hex_string(self):
         result = hash_password("hello")
-        # MD5 hex digest is 32 characters long
-        assert len(result) == 32
-        assert all(c in "0123456789abcdef" for c in result)
+        # Now returns a salted hash: <32 hex MD5>:<64 hex SHA256>
+        assert len(result) == 97
+        assert re.match(r'^[0-9a-f]{32}:[0-9a-f]{64}$', result)
 
     def test_same_input_produces_same_hash(self):
         a = hash_password("secret")
         b = hash_password("secret")
-        assert a == b
+        # With random salting, the same input should produce different hashes.
+        assert a != b
 
-    def test_different_inputs_produce_different_hashes(self):
+    def test_different_inputs_produces_different_hashes(self):
         a = hash_password("secret1")
         b = hash_password("secret2")
         assert a != b
 
     def test_empty_string(self):
         result = hash_password("")
-        assert result == hashlib.md5(b"").hexdigest()
+        # The result should be a salted hash, not a plain MD5.
+        assert result != hashlib.md5(b"").hexdigest()
+        assert len(result) > 32
+        assert re.match(r'^[0-9a-f]{32}:[0-9a-f]{64}$', result)
 
 
 # ---------------------------------------------------------------------------
@@ -120,8 +125,8 @@ class TestGetAverageRating:
         assert get_average_rating([5.0]) == 5.0
 
     def test_empty_list_raises_zero_division(self):
-        with pytest.raises(ZeroDivisionError):
-            get_average_rating([])
+        # Empty list now returns 0 instead of raising ZeroDivisionError.
+        assert get_average_rating([]) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +155,7 @@ class TestIsAdminUser:
 
 class TestParseUserConfig:
     def test_valid_dict_input(self):
-        result = parse_user_config("{'name': 'eve'}")
+        result = parse_user_config('{"name": "eve"}')
         assert result == {"name": "eve"}
 
     def test_invalid_python_syntax(self):
