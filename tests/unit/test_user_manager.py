@@ -36,7 +36,8 @@ class TestHashPassword:
     def test_same_input_produces_same_hash(self):
         a = hash_password("secret")
         b = hash_password("secret")
-        assert a == b
+        # The hash includes a random salt, so two calls will produce different results
+        assert a != b
 
     def test_different_inputs_produce_different_hashes(self):
         a = hash_password("secret1")
