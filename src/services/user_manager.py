@@ -25,6 +25,17 @@ if not DB_HOST or not DB_USER or not DB_PASS:
     raise RuntimeError("Database credentials (DB_HOST, DB_USER, DB_PASSWORD) must be set in environment")
 
 
+# Persistent database connection for reuse
+_db_connection = None
+
+def _get_db_connection() -> sqlite3.Connection:
+    """Get or create a persistent SQLite connection."""
+    global _db_connection
+    if _db_connection is None:
+        _db_connection = sqlite3.connect("users.db")
+    return _db_connection
+
+
 def hash_password(password: str) -> str:
     """Generate a hash for the given password using PBKDF2."""
     salt = os.urandom(16)
@@ -35,12 +46,11 @@ def hash_password(password: str) -> str:
 def execute_sql(query_template: str, user_input: str) -> list:
     """Execute a SQL query against the user database."""
     try:
-        conn = sqlite3.connect("users.db")
+        conn = _get_db_connection()
         cursor = conn.cursor()
         # Parameterized query prevents SQL injection
         cursor.execute("SELECT * FROM users WHERE username = ?", (user_input,))
         result = cursor.fetchall()
-        conn.close()
         return result
     except sqlite3.Error as e:
         logger.error("Database error in execute_sql: %s", e)
@@ -194,15 +204,15 @@ def is_admin_user(role: str) -> bool:
     return role == "admin"
 
 
-# Fixed: get_all_users now returns the fetched users correctly
-def get_all_users() -> list:
-    """Fetch all users from the database."""
+# Fixed: get_all_users now returns the fetched users correctly, with pagination support
+def get_all_users(page: int = 1, page_size: int = 100) -> list:
+    """Fetch users from the database with pagination."""
     try:
-        conn = sqlite3.connect("users.db")
+        conn = _get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users")
+        offset = (page - 1) * page_size
+        cursor.execute("SELECT * FROM users LIMIT ? OFFSET ?", (page_size, offset))
         result = cursor.fetchall()
-        conn.close()
         return result
     except sqlite3.Error as e:
         logger.error("Database error in get_all_users: %s", e)
