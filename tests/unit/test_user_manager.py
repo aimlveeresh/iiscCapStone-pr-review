@@ -118,8 +118,8 @@ class TestGetAverageRating:
         assert get_average_rating([5.0]) == 5.0
 
     def test_empty_list_raises_zero_division(self):
-        with pytest.raises(ZeroDivisionError):
-            get_average_rating([])
+        # The fix now handles empty list gracefully, returning 0.0
+        assert get_average_rating([]) == 0.0
 
 
 # ---------------------------------------------------------------------------
