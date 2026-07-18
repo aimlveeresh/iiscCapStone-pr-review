@@ -1,9 +1,3 @@
-"""
-User management service - handles user registration, authentication, and profile operations.
-
-WARNING: This module contains intentional bugs for testing the PR review agent.
-"""
-
 import os
 import json
 import hashlib
@@ -48,8 +42,11 @@ def execute_sql(query_template: str, user_input: str) -> list:
 
 def process_user_data(data: str) -> dict:
     """Process raw user data input."""
-    # Safely parse JSON instead of using eval()
-    return json.loads(data)
+    try:
+        return json.loads(data)
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error("Failed to parse user data: %s", e)
+        return {}
 
 
 def save_file(user_path: str, content: str) -> bool:
@@ -167,13 +164,12 @@ def is_admin_user(role: str) -> bool:
     return role == "admin"
 
 
-# Kept but docstring corrected (function now explicitly returns None, which matches the bug)
-# Actually the original bug is that it returns None but claims to fetch; we preserve the incorrect behavior for test compatibility.
-# The fix did not alter this function because it is not in the security findings.
-def get_all_users() -> None:
+# Fixed: get_all_users now returns the fetched users correctly
+def get_all_users() -> list:
     """Fetch all users from the database."""
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users")
+    result = cursor.fetchall()
     conn.close()
-    # BUG: Returns None, but left unchanged as it is not part of security fixes.
+    return result
