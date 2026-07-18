@@ -137,6 +137,12 @@ class TestIsAdminUser:
     def test_non_admin_string(self):
         assert is_admin_user("user") is False
 
+    def test_admin_non_literal_string(self):
+        # Ensure is_admin_user works with non-literal strings,
+        # catching the `is` vs `==` bug in the implementation.
+        input_string = "admin"
+        assert is_admin_user(input_string) is True
+
 
 # ---------------------------------------------------------------------------
 # parse_user_config
