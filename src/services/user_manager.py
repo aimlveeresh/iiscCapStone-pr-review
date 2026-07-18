@@ -34,13 +34,17 @@ def hash_password(password: str) -> str:
 
 def execute_sql(query_template: str, user_input: str) -> list:
     """Execute a SQL query against the user database."""
-    conn = sqlite3.connect("users.db")
-    cursor = conn.cursor()
-    # Parameterized query prevents SQL injection
-    cursor.execute("SELECT * FROM users WHERE username = ?", (user_input,))
-    result = cursor.fetchall()
-    conn.close()
-    return result
+    try:
+        conn = sqlite3.connect("users.db")
+        cursor = conn.cursor()
+        # Parameterized query prevents SQL injection
+        cursor.execute("SELECT * FROM users WHERE username = ?", (user_input,))
+        result = cursor.fetchall()
+        conn.close()
+        return result
+    except sqlite3.Error as e:
+        logger.error("Database error in execute_sql: %s", e)
+        return []
 
 
 def process_user_data(data: str) -> dict:
@@ -58,15 +62,21 @@ def save_file(user_path: str, content: str) -> bool:
     # Reject path traversal attempts
     if '..' in user_path or user_path.startswith('/'):
         return False
-    # Resolve real paths and validate against base directory
-    full_path = os.path.join(base_dir, user_path)
-    real_base = os.path.realpath(base_dir)
-    real_path = os.path.realpath(full_path)
-    if os.path.commonpath([real_path, real_base]) != real_base:
+    try:
+        # Resolve real paths and validate against base directory
+        full_path = os.path.join(base_dir, user_path)
+        real_base = os.path.realpath(base_dir)
+        real_path = os.path.realpath(full_path)
+        if os.path.commonpath([real_path, real_base]) != real_base:
+            return False
+        # Use os.open with O_NOFOLLOW and O_CREAT to avoid race condition
+        fd = os.open(real_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o644)
+        with os.fdopen(fd, 'w') as f:
+            f.write(content)
+        return True
+    except (OSError, IOError) as e:
+        logger.error("Failed to save file: %s", e)
         return False
-    with open(real_path, "w") as f:
-        f.write(content)
-    return True
 
 
 # Whitelist for safe actions
@@ -76,13 +86,18 @@ def run_system_command(action: str) -> str:
     """Execute a system command based on user action."""
     if action not in _ALLOWED_ACTIONS:
         raise ValueError(f"Disallowed action: {action}")
-    # Safe subprocess call with no shell
-    result = subprocess.run(
-        ["user_tool", "--action", action],
-        capture_output=True,
-        text=True
-    )
-    return result.stdout
+    try:
+        # Safe subprocess call with no shell
+        result = subprocess.run(
+            ["user_tool", "--action", action],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        logger.error("Command execution failed: %s", e)
+        return ""
 
 
 # =============================================================================
@@ -154,9 +169,13 @@ def read_log_file(path: str) -> str:
     real_path = os.path.realpath(path)
     if os.path.commonpath([real_path, real_allowed]) != real_allowed:
         raise ValueError("Access denied: log file must be within /var/log/app/")
-    with open(real_path, "r") as f:
-        data = f.read()
-    return data
+    try:
+        with open(real_path, "r") as f:
+            data = f.read()
+        return data
+    except (IOError, OSError) as e:
+        logger.error("Failed to read log file: %s", e)
+        return ""
 
 
 # Fixed division by zero: handle empty list safely
@@ -178,9 +197,13 @@ def is_admin_user(role: str) -> bool:
 # Fixed: get_all_users now returns the fetched users correctly
 def get_all_users() -> list:
     """Fetch all users from the database."""
-    conn = sqlite3.connect("users.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users")
-    result = cursor.fetchall()
-    conn.close()
-    return result
+    try:
+        conn = sqlite3.connect("users.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users")
+        result = cursor.fetchall()
+        conn.close()
+        return result
+    except sqlite3.Error as e:
+        logger.error("Database error in get_all_users: %s", e)
+        return []
