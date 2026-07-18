@@ -41,7 +41,7 @@ def authenticate_user(user_input, password):
         cursor.execute(query, (user_input,))
         user = cursor.fetchone()
     
-    if user and bcrypt.checkpw(password.encode(), user[2]):
+    if user and len(user) >= 3 and bcrypt.checkpw(password.encode(), user[2]):
         return user
     return None
 
