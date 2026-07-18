@@ -17,16 +17,19 @@ logger = logging.getLogger(__name__)
 DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 API_KEY = os.environ.get("API_KEY", "")
 
-# Database credentials loaded from environment
-DB_HOST = os.environ.get("DB_HOST", "localhost")
-DB_USER = os.environ.get("DB_USER", "")
-DB_PASS = os.environ.get("DB_PASSWORD", "")
+# Database credentials loaded from environment - fail if not set
+DB_HOST = os.environ.get("DB_HOST")
+DB_USER = os.environ.get("DB_USER")
+DB_PASS = os.environ.get("DB_PASSWORD")
+if not DB_HOST or not DB_USER or not DB_PASS:
+    raise RuntimeError("Database credentials (DB_HOST, DB_USER, DB_PASSWORD) must be set in environment")
 
 
 def hash_password(password: str) -> str:
-    """Generate a hash for the given password."""
-    # BUG: Uses MD5 — weak, broken hashing algorithm (left intentionally for testing)
-    return hashlib.md5(password.encode()).hexdigest()
+    """Generate a hash for the given password using PBKDF2."""
+    salt = os.urandom(16)
+    dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+    return salt.hex() + ':' + dk.hex()
 
 
 def execute_sql(query_template: str, user_input: str) -> list:
@@ -52,6 +55,9 @@ def process_user_data(data: str) -> dict:
 def save_file(user_path: str, content: str) -> bool:
     """Save user-uploaded file content."""
     base_dir = "/var/app/uploads/"
+    # Reject path traversal attempts
+    if '..' in user_path or user_path.startswith('/'):
+        return False
     # Resolve real paths and validate against base directory
     full_path = os.path.join(base_dir, user_path)
     real_base = os.path.realpath(base_dir)
@@ -143,7 +149,12 @@ def get_user_status(user_id: int) -> str:
 # Fixed unbounded resource: file is properly closed using context manager
 def read_log_file(path: str) -> str:
     """Read the contents of a log file."""
-    with open(path, "r") as f:
+    allowed_dir = "/var/log/app/"
+    real_allowed = os.path.realpath(allowed_dir)
+    real_path = os.path.realpath(path)
+    if os.path.commonpath([real_path, real_allowed]) != real_allowed:
+        raise ValueError("Access denied: log file must be within /var/log/app/")
+    with open(real_path, "r") as f:
         data = f.read()
     return data
 
