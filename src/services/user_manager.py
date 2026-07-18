@@ -8,6 +8,8 @@ import os
 import hashlib
 import sqlite3
 import logging
+import json
+import subprocess
 from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
@@ -16,29 +18,29 @@ logger = logging.getLogger(__name__)
 # SECURITY BUGS
 # =============================================================================
 
-# BUG: Hardcoded secret / API key
-DEFAULT_ADMIN_PASSWORD = "SuperSecretAdmin123!"
-API_KEY = "sk-live-abc123def456ghi789jkl012mno345pqr678stu901vwx"
+# Removed hardcoded secrets; loaded from environment variables
+DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+API_KEY = os.environ.get("API_KEY", "")
 
-# BUG: Hardcoded database credentials
-DB_HOST = "prod-db.internal"
-DB_USER = "admin"
-DB_PASS = "P@ssw0rd_Production_2024"
+DB_HOST = os.environ.get("DB_HOST", "")
+DB_USER = os.environ.get("DB_USER", "")
+DB_PASS = os.environ.get("DB_PASS", "")
 
 
 def hash_password(password: str) -> str:
     """Generate a hash for the given password."""
-    # BUG: Uses MD5 — weak, broken hashing algorithm
-    return hashlib.md5(password.encode()).hexdigest()
+    salt = os.urandom(16)
+    hash_bytes = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1, dklen=32)
+    return salt.hex() + ":" + hash_bytes.hex()
 
 
 def execute_sql(query_template: str, user_input: str) -> list:
     """Execute a SQL query against the user database."""
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
-    # BUG: SQL injection — user input interpolated directly into query
-    query = f"SELECT * FROM users WHERE username = '{user_input}'"
-    cursor.execute(query)
+    # Use parameterized query to prevent SQL injection
+    query = "SELECT * FROM users WHERE username = ?"
+    cursor.execute(query, (user_input,))
     result = cursor.fetchall()
     conn.close()
     return result
@@ -46,15 +48,17 @@ def execute_sql(query_template: str, user_input: str) -> list:
 
 def process_user_data(data: str) -> dict:
     """Process raw user data input."""
-    # BUG: eval() on unsanitized input — arbitrary code execution
-    return eval(data)
+    # Use safe JSON parser instead of eval()
+    return json.loads(data)
 
 
 def save_file(user_path: str, content: str) -> bool:
     """Save user-uploaded file content."""
-    # BUG: Path traversal — user_path not sanitized
     base_dir = "/var/app/uploads/"
-    full_path = base_dir + user_path
+    # Normalize and validate the path to prevent directory traversal
+    full_path = os.path.normpath(os.path.join(base_dir, user_path))
+    if not full_path.startswith(os.path.normpath(base_dir)):
+        raise ValueError("Invalid path: access denied")
     with open(full_path, "w") as f:
         f.write(content)
     return True
@@ -62,8 +66,12 @@ def save_file(user_path: str, content: str) -> bool:
 
 def run_system_command(action: str) -> str:
     """Execute a system command based on user action."""
-    # BUG: OS command injection
-    return os.popen(f"user_tool --action {action}").read()
+    # Use subprocess.run with a list of arguments (shell=False) to prevent injection
+    return subprocess.run(
+        ["user_tool", "--action", action],
+        capture_output=True,
+        text=True
+    ).stdout
 
 
 # =============================================================================
@@ -87,7 +95,8 @@ def add_user(name: str, roles: list = []) -> list:
 def parse_user_config(raw_config: str) -> dict:
     """Parse user configuration from a raw string."""
     try:
-        return eval(raw_config)  # Also a security bug — eval usage
+        # Safe parsing instead of eval()
+        return json.loads(raw_config)
     except:
         logger.error("Failed to parse config")
         return {}
@@ -127,12 +136,15 @@ def get_user_status(user_id: int) -> str:
 # CODE SMELLS / OTHER BUGS
 # =============================================================================
 
-# BUG: Unbounded resource — function opens a file and never closes it
+# BUG: Unbounded resource — function opens a file and never closes it (also path traversal)
 def read_log_file(path: str) -> str:
     """Read the contents of a log file."""
-    f = open(path, "r")
-    data = f.read()
-    return data
+    base_log_dir = "/var/log/userapp/"
+    safe_path = os.path.realpath(os.path.join(base_log_dir, path))
+    if not safe_path.startswith(os.path.realpath(base_log_dir)):
+        raise ValueError("Access denied: path traversal detected")
+    with open(safe_path, "r") as f:
+        return f.read()
 
 
 # BUG: Division by zero potential
