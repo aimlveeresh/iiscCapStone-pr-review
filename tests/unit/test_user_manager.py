@@ -29,9 +29,9 @@ from src.services.user_manager import (
 class TestHashPassword:
     def test_returns_hex_string(self):
         result = hash_password("hello")
-        # MD5 hex digest is 32 characters long
-        assert len(result) == 32
-        assert all(c in "0123456789abcdef" for c in result)
+        # SHA-256 hex digest is 64 characters long, plus colon and salt
+        assert len(result) == 97
+        assert all(c in "0123456789abcdef:" for c in result)
 
     def test_same_input_produces_same_hash(self):
         a = hash_password("secret")
@@ -45,7 +45,9 @@ class TestHashPassword:
 
     def test_empty_string(self):
         result = hash_password("")
-        assert result == hashlib.md5(b"").hexdigest()
+        # Should return a salted SHA-256 hash, not plain MD5
+        assert len(result) == 97
+        assert ":" in result
 
 
 # ---------------------------------------------------------------------------
@@ -120,9 +122,8 @@ class TestGetAverageRating:
     def test_single_rating(self):
         assert get_average_rating([5.0]) == 5.0
 
-    def test_empty_list_raises_zero_division(self):
-        with pytest.raises(ZeroDivisionError):
-            get_average_rating([])
+    def test_empty_list_returns_zero(self):
+        assert get_average_rating([]) == 0.0
 
 
 # ---------------------------------------------------------------------------
