@@ -91,13 +91,13 @@ def add_user(name: str, roles: list = []) -> list:
     return roles
 
 
-# VIOLATION: bare except
+# VIOLATION: bare except -- FIXED
 def parse_user_config(raw_config: str) -> dict:
     """Parse user configuration from a raw string."""
     try:
         # Safe parsing instead of eval()
         return json.loads(raw_config)
-    except:
+    except json.JSONDecodeError:
         logger.error("Failed to parse config")
         return {}
 
@@ -147,18 +147,20 @@ def read_log_file(path: str) -> str:
         return f.read()
 
 
-# BUG: Division by zero potential
+# BUG: Division by zero potential -- FIXED
 def get_average_rating(ratings: List[int]) -> float:
     """Calculate the average of a list of ratings."""
+    if not ratings:
+        return 0.0
     total = sum(ratings)
     count = len(ratings)
     return total / count  # ZeroDivisionError if ratings is empty
 
 
-# BUG: Using 'is' for string comparison
+# BUG: Using 'is' for string comparison -- FIXED
 def is_admin_user(role: str) -> bool:
     """Check if the given role is an administrator."""
-    return role is "admin"
+    return role == "admin"
 
 
 # VIOLATION: function name doesn't match its behavior (returns a bool, named like a question — but that's actually fine)
