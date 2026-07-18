@@ -30,10 +30,6 @@ def authenticate_user(user_input, password):
     Returns:
         User tuple if authentication succeeds, None otherwise
     """
-    db_password = os.getenv('DB_PASSWORD')
-    if not db_password:
-        raise ValueError('DB_PASSWORD environment variable not set')
-    
     # SECURITY FIX: Use parameterized queries to prevent SQL injection
     with sqlite3.connect('users.db') as conn:
         cursor = conn.cursor()
@@ -41,7 +37,7 @@ def authenticate_user(user_input, password):
         cursor.execute(query, (user_input,))
         user = cursor.fetchone()
     
-    if user and len(user) >= 3 and bcrypt.checkpw(password.encode(), user[2]):
+    if user and len(user) >= 3 and bcrypt.checkpw(password.encode(), user[2].encode()):
         return user
     return None
 
