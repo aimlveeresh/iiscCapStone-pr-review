@@ -5,6 +5,7 @@ Tests cover the happy path and several edge cases for each function.
 """
 
 import hashlib
+import ast
 import pytest
 from unittest.mock import patch, MagicMock, mock_open
 
@@ -148,7 +149,7 @@ class TestParseUserConfig:
         assert result == {"name": "eve"}
 
     def test_invalid_python_syntax(self):
-        # Bare except catches the SyntaxError
+        # ast.literal_eval raises ValueError for invalid syntax
         result = parse_user_config("not valid {{")
         assert result == {}
 
@@ -167,9 +168,10 @@ class TestExecuteSql:
 
         result = execute_sql("ignored", "alice")
 
-        # Check that the user input was interpolated directly (the SQL bug)
-        executed_query = mock_cursor.execute.call_args[0][0]
-        assert "alice" in executed_query
+        # Check that the user input was passed as a parameter (not interpolated)
+        executed_args = mock_cursor.execute.call_args[0]
+        assert len(executed_args) == 2
+        assert executed_args[1] == ("alice",)
         assert result == [("alice", "alice@example.com")]
 
 
