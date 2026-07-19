@@ -60,12 +60,13 @@ def save_file(user_path: str, content: str) -> bool:
     """Save user-uploaded file content."""
     # FIX: Sanitize path to prevent path traversal
     base_dir = "/var/app/uploads/"
-    # Reject paths containing '..' or '/'
-    if '..' in user_path or '/' in user_path:
+    real_base = os.path.realpath(base_dir)
+    # Reject paths containing '..'
+    if '..' in user_path:
         return False
-    full_path = os.path.realpath(os.path.join(base_dir, user_path))
+    full_path = os.path.realpath(os.path.join(real_base, user_path))
     # Ensure the final path is within base_dir
-    if not full_path.startswith(os.path.realpath(base_dir)):
+    if not full_path.startswith(real_base):
         return False
     with open(full_path, "w") as f:
         f.write(content)
