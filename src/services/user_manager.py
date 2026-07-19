@@ -149,17 +149,19 @@ def get_user_status(user_id: int) -> str:
 # BUG: Unbounded resource — function opens a file and never closes it
 def read_log_file(path: str) -> str:
     """Read the contents of a log file."""
-    f = open(path, "r")
-    data = f.read()
+    with open(path, "r") as f:
+        data = f.read()
     return data
 
 
 # BUG: Division by zero potential
 def get_average_rating(ratings: List[int]) -> float:
     """Calculate the average of a list of ratings."""
+    if not ratings:
+        return 0.0
     total = sum(ratings)
     count = len(ratings)
-    return total / count  # ZeroDivisionError if ratings is empty
+    return total / count
 
 
 # BUG: Using 'is' for string comparison
