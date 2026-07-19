@@ -23,9 +23,9 @@ from src.services.user_manager import (
 class TestHashPassword:
     def test_returns_hex_string(self):
         result = hash_password("hello")
-        # SHA-256 hex digest is 64 characters long
-        assert len(result) == 64
-        assert all(c in "0123456789abcdef" for c in result)
+        # SHA-256 hex digest is 64 characters, plus colon separator = 129 chars
+        assert len(result) == 129
+        assert all(c in "0123456789abcdef:" for c in result)
 
     def test_same_input_produces_same_hash(self):
         a = hash_password("secret")
@@ -39,7 +39,7 @@ class TestHashPassword:
 
     def test_empty_string(self):
         result = hash_password("")
-        # SHA-256 of empty string with salt
+        # SHA-256 of empty string with salt (two hex digests separated by colon)
         assert result == hashlib.sha256(b"").hexdigest() + ":" + hashlib.sha256(b"").hexdigest()
 
 
