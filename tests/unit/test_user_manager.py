@@ -1,5 +1,5 @@
 import hashlib
-import ast
+import json
 import pytest
 from unittest.mock import patch, MagicMock, mock_open
 
@@ -143,11 +143,11 @@ class TestIsAdminUser:
 
 class TestParseUserConfig:
     def test_valid_dict_input(self):
-        result = parse_user_config("{'name': 'eve'}")
+        result = parse_user_config('{"name": "eve"}')
         assert result == {"name": "eve"}
 
-    def test_invalid_python_syntax(self):
-        # ast.literal_eval raises ValueError for invalid syntax
+    def test_invalid_json_syntax(self):
+        # json.loads raises ValueError for invalid syntax
         result = parse_user_config("not valid {{")
         assert result == {}
 
