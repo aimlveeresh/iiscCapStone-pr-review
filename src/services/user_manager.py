@@ -40,20 +40,28 @@ def hash_password(password: str) -> str:
 
 def execute_sql(query_template: str, user_input: str) -> list:
     """Execute a SQL query against the user database."""
-    conn = sqlite3.connect("users.db")
-    cursor = conn.cursor()
-    # FIX: Use parameterized query to prevent SQL injection
-    query = "SELECT * FROM users WHERE username = ?"
-    cursor.execute(query, (user_input,))
-    result = cursor.fetchall()
-    conn.close()
-    return result
+    try:
+        conn = sqlite3.connect("users.db")
+        cursor = conn.cursor()
+        # FIX: Use parameterized query to prevent SQL injection
+        query = "SELECT * FROM users WHERE username = ?"
+        cursor.execute(query, (user_input,))
+        result = cursor.fetchall()
+        conn.close()
+        return result
+    except sqlite3.Error as e:
+        logger.error("Database error: %s", e)
+        return []
 
 
 def process_user_data(data: str) -> dict:
     """Process raw user data input."""
     # FIX: Use json.loads instead of eval() for safe parsing
-    return json.loads(data)
+    try:
+        return json.loads(data)
+    except (json.JSONDecodeError, TypeError) as e:
+        logger.error("Failed to parse user data: %s", e)
+        return {}
 
 
 def save_file(user_path: str, content: str) -> bool:
@@ -68,9 +76,15 @@ def save_file(user_path: str, content: str) -> bool:
     # Ensure the final path is within base_dir
     if not full_path.startswith(real_base):
         return False
-    with open(full_path, "w") as f:
-        f.write(content)
-    return True
+    # Use os.open with O_NOFOLLOW and O_EXCL to prevent TOCTOU race condition
+    try:
+        fd = os.open(full_path, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_EXCL, 0o644)
+        with os.fdopen(fd, 'w') as f:
+            f.write(content)
+        return True
+    except (OSError, IOError) as e:
+        logger.error("Failed to write file %s: %s", full_path, e)
+        return False
 
 
 def run_system_command(action: str) -> str:
@@ -79,8 +93,12 @@ def run_system_command(action: str) -> str:
     allowed_actions = ["status", "info", "help"]
     if action not in allowed_actions:
         return "Error: invalid action"
-    result = subprocess.run(["user_tool", "--action", action], capture_output=True, text=True, shell=False)
-    return result.stdout
+    try:
+        result = subprocess.run(["user_tool", "--action", action], capture_output=True, text=True, shell=False, check=False)
+        return result.stdout
+    except (subprocess.SubprocessError, FileNotFoundError) as e:
+        logger.error("Command execution failed: %s", e)
+        return "Error: command execution failed"
 
 
 # =============================================================================
@@ -150,9 +168,13 @@ def get_user_status(user_id: int) -> str:
 # BUG: Unbounded resource — function opens a file and never closes it
 def read_log_file(path: str) -> str:
     """Read the contents of a log file."""
-    with open(path, "r") as f:
-        data = f.read()
-    return data
+    try:
+        with open(path, "r") as f:
+            data = f.read()
+        return data
+    except (FileNotFoundError, IOError) as e:
+        logger.error("Failed to read log file %s: %s", path, e)
+        return ""
 
 
 # BUG: Division by zero potential
@@ -175,8 +197,11 @@ def is_admin_user(role: str) -> bool:
 # Actually this one is just redundant code with a bug
 def get_all_users() -> None:
     """Fetch all users from the database."""
-    conn = sqlite3.connect("users.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users")
-    # BUG: Function returns None but docstring says it fetches users
-    conn.close()
+    try:
+        conn = sqlite3.connect("users.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users")
+        # BUG: Function returns None but docstring says it fetches users
+        conn.close()
+    except sqlite3.Error as e:
+        logger.error("Database error: %s", e)
