@@ -1,9 +1,3 @@
-"""
-Unit tests for the user_manager service module.
-
-Tests cover the happy path and several edge cases for each function.
-"""
-
 import hashlib
 import ast
 import pytest
@@ -29,8 +23,8 @@ from src.services.user_manager import (
 class TestHashPassword:
     def test_returns_hex_string(self):
         result = hash_password("hello")
-        # MD5 hex digest is 32 characters long
-        assert len(result) == 32
+        # SHA-256 hex digest is 64 characters long
+        assert len(result) == 64
         assert all(c in "0123456789abcdef" for c in result)
 
     def test_same_input_produces_same_hash(self):
@@ -45,7 +39,8 @@ class TestHashPassword:
 
     def test_empty_string(self):
         result = hash_password("")
-        assert result == hashlib.md5(b"").hexdigest()
+        # SHA-256 of empty string with salt
+        assert result == hashlib.sha256(b"").hexdigest() + ":" + hashlib.sha256(b"").hexdigest()
 
 
 # ---------------------------------------------------------------------------
