@@ -6,6 +6,7 @@ Tests cover the happy path and several edge cases for each function.
 """
 
 import hashlib
+import ast
 import pytest
 from unittest.mock import patch, MagicMock, mock_open
 
