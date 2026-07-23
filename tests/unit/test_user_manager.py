@@ -5,6 +5,7 @@ Tests cover the happy path and several edge cases for each function.
 """
 
 import hashlib
+import ast
 import pytest
 from unittest.mock import patch, MagicMock, mock_open
 
@@ -167,9 +168,11 @@ class TestExecuteSql:
 
         result = execute_sql("ignored", "alice")
 
-        # Check that the user input was interpolated directly (the SQL bug)
+        # Check that the user input was passed as a parameter (not interpolated)
         executed_query = mock_cursor.execute.call_args[0][0]
-        assert "alice" in executed_query
+        executed_params = mock_cursor.execute.call_args[0][1] if len(mock_cursor.execute.call_args[0]) > 1 else None
+        assert "?" in executed_query or "%s" in executed_query
+        assert executed_params == ("alice",) or executed_params == ["alice"]
         assert result == [("alice", "alice@example.com")]
 
 
