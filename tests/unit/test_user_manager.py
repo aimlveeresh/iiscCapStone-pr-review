@@ -134,7 +134,7 @@ class TestIsAdminUser:
     def test_admin_string(self):
         # BUG: uses `is` instead of `==` — `"admin" is "admin"` is True
         # with literal strings, so these tests pass anyway.
-        assert is_admin_user("admin") is True
+        assert is_admin_user("admin") == True
 
     def test_non_admin_string(self):
         assert is_admin_user("user") is False
