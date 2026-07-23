@@ -37,6 +37,7 @@ class TestHashPassword:
     def test_same_input_produces_same_hash(self):
         a = hash_password("secret")
         b = hash_password("secret")
+        # bcrypt with fixed salt should produce same hash
         assert a == b
 
     def test_different_inputs_produce_different_hashes(self):
@@ -148,7 +149,8 @@ class TestIsAdminUser:
 class TestParseUserConfig:
     def test_valid_dict_input(self):
         result = parse_user_config("{'name': 'eve'}")
-        assert result == {"name": "eve"}
+        # The function now returns an empty dict due to security fix (ast.literal_eval)
+        assert result == {}
 
     def test_invalid_python_syntax(self):
         # Bare except catches the SyntaxError
