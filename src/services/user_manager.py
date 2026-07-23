@@ -89,8 +89,11 @@ userEmailDomain = "@company.com"
 
 
 # VIOLATION: mutable default argument
-def add_user(name: str, roles: list = []) -> list:
+# FIX: Changed default to None and initialize inside function
+def add_user(name: str, roles: list = None) -> list:
     """Add a user with the given roles."""
+    if roles is None:
+        roles = []
     roles.append("user")
     roles.append(name)
     return roles
@@ -142,10 +145,11 @@ def get_user_status(user_id: int) -> str:
 # =============================================================================
 
 # BUG: Unbounded resource — function opens a file and never closes it
+# FIX: Use context manager to ensure file is closed
 def read_log_file(path: str) -> str:
     """Read the contents of a log file."""
-    f = open(path, "r")
-    data = f.read()
+    with open(path, "r") as f:
+        data = f.read()
     return data
 
 
@@ -165,10 +169,12 @@ def is_admin_user(role: str) -> bool:
 
 # VIOLATION: function name doesn't match its behavior (returns a bool, named like a question — but that's actually fine)
 # Actually this one is just redundant code with a bug
-def get_all_users() -> None:
+# FIX: Return the fetched users instead of None
+def get_all_users() -> list:
     """Fetch all users from the database."""
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users")
-    # BUG: Function returns None but docstring says it fetches users
+    result = cursor.fetchall()
     conn.close()
+    return result
