@@ -30,9 +30,9 @@ from src.services.user_manager import (
 class TestHashPassword:
     def test_returns_hex_string(self):
         result = hash_password("hello")
-        # MD5 hex digest is 32 characters long
-        assert len(result) == 32
-        assert all(c in "0123456789abcdef" for c in result)
+        # bcrypt hash is 60 characters long and starts with $2b$
+        assert len(result) == 60
+        assert result.startswith("$2b$")
 
     def test_same_input_produces_same_hash(self):
         a = hash_password("secret")
@@ -46,7 +46,9 @@ class TestHashPassword:
 
     def test_empty_string(self):
         result = hash_password("")
-        assert result == hashlib.md5(b"").hexdigest()
+        # bcrypt hash for empty string should still be 60 chars and start with $2b$
+        assert len(result) == 60
+        assert result.startswith("$2b$")
 
 
 # ---------------------------------------------------------------------------
@@ -121,8 +123,8 @@ class TestGetAverageRating:
     def test_single_rating(self):
         assert get_average_rating([5.0]) == 5.0
 
-    def test_empty_list_raises_zero_division(self):
-        with pytest.raises(ZeroDivisionError):
+    def test_empty_list_raises_value_error(self):
+        with pytest.raises(ValueError):
             get_average_rating([])
 
 
