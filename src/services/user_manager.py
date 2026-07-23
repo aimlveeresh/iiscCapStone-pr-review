@@ -174,3 +174,4 @@ def get_all_users() -> None:
     # BUG: Function returns None but docstring says it fetches users
     conn.close()
 
+
