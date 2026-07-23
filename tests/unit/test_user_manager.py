@@ -1,9 +1,3 @@
-"""
-Unit tests for the user_manager service module.
-
-Tests cover the happy path and several edge cases for each function.
-"""
-
 import hashlib
 import pytest
 from unittest.mock import patch, MagicMock, mock_open
