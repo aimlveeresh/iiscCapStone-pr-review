@@ -167,9 +167,12 @@ class TestExecuteSql:
 
         result = execute_sql("ignored", "alice")
 
-        # Check that the user input was interpolated directly (the SQL bug)
-        executed_query = mock_cursor.execute.call_args[0][0]
-        assert "alice" in executed_query
+        # Check that the user input was passed as a parameter (not interpolated)
+        executed_call = mock_cursor.execute.call_args
+        executed_query = executed_call[0][0]
+        executed_params = executed_call[0][1] if len(executed_call[0]) > 1 else None
+        assert "?" in executed_query or "%s" in executed_query
+        assert executed_params == ("alice",) or executed_params == ["alice"]
         assert result == [("alice", "alice@example.com")]
 
 
