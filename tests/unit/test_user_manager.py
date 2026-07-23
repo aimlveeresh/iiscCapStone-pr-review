@@ -115,9 +115,8 @@ class TestGetAverageRating:
     def test_single_rating(self):
         assert get_average_rating([5.0]) == 5.0
 
-    def test_empty_list_raises_value_error(self):
-        with pytest.raises(ValueError):
-            get_average_rating([])
+    def test_empty_list_returns_zero(self):
+        assert get_average_rating([]) == 0.0
 
 
 # ---------------------------------------------------------------------------
