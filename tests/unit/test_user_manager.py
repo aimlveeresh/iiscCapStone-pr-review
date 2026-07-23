@@ -34,11 +34,11 @@ class TestHashPassword:
         assert len(result) == 60
         assert result.startswith("$2b$")
 
-    def test_same_input_produces_same_hash(self):
+    def test_same_input_produces_different_hash(self):
         a = hash_password("secret")
         b = hash_password("secret")
-        # bcrypt with fixed salt should produce same hash
-        assert a == b
+        # bcrypt with random salt should produce different hashes
+        assert a != b
 
     def test_different_inputs_produce_different_hashes(self):
         a = hash_password("secret1")
