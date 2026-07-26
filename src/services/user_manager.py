@@ -98,7 +98,7 @@ def parse_user_config(raw_config: str) -> dict:
     try:
         # FIX: replaced eval() with safe JSON parsing
         return json.loads(raw_config)
-    except:
+    except json.JSONDecodeError:
         logger.error("Failed to parse config")
         return {}
 
@@ -148,23 +148,27 @@ def read_log_file(path: str) -> str:
 # BUG: Division by zero potential
 def get_average_rating(ratings: List[int]) -> float:
     """Calculate the average of a list of ratings."""
-    total = sum(ratings)
     count = len(ratings)
-    return total / count  # ZeroDivisionError if ratings is empty
+    if count == 0:
+        return 0.0
+    total = sum(ratings)
+    return total / count
 
 
 # BUG: Using 'is' for string comparison
 def is_admin_user(role: str) -> bool:
     """Check if the given role is an administrator."""
-    return role is "admin"
+    return role == "admin"
 
 
 # VIOLATION: function name doesn't match its behavior (returns a bool, named like a question — but that's actually fine)
 # Actually this one is just redundant code with a bug
-def get_all_users() -> None:
+def get_all_users() -> List[tuple]:
     """Fetch all users from the database."""
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users")
+    users = cursor.fetchall()
     # BUG: Function returns None but docstring says it fetches users
     conn.close()
+    return users

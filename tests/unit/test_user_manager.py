@@ -130,9 +130,8 @@ class TestGetAverageRating:
 
 class TestIsAdminUser:
     def test_admin_string(self):
-        # BUG: uses `is` instead of `==` — `"admin" is "admin"` is True
-        # with literal strings, so these tests pass anyway.
-        assert is_admin_user("admin") is True
+        # Use a non-interned string to catch misuse of `is` in the implementation.
+        assert is_admin_user(str("admin")) == True
 
     def test_non_admin_string(self):
         assert is_admin_user("user") is False
