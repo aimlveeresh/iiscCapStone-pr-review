@@ -4,8 +4,8 @@ Unit tests for the user_manager service module.
 Tests cover the happy path and several edge cases for each function.
 """
 
-import hashlib
 import pytest
+import bcrypt
 from unittest.mock import patch, MagicMock, mock_open
 
 from src.services.user_manager import (
@@ -28,14 +28,20 @@ from src.services.user_manager import (
 class TestHashPassword:
     def test_returns_hex_string(self):
         result = hash_password("hello")
-        # MD5 hex digest is 32 characters long
-        assert len(result) == 32
-        assert all(c in "0123456789abcdef" for c in result)
+        # bcrypt hash is 60 characters long and starts with $2b$
+        assert len(result) == 60
+        assert result.startswith("$2b$")
+        assert bcrypt.checkpw(b"hello", result.encode())
 
     def test_same_input_produces_same_hash(self):
-        a = hash_password("secret")
-        b = hash_password("secret")
-        assert a == b
+        password = "secret"
+        hashed = hash_password(password)
+        # bcrypt hashes are salted, so two calls give different strings
+        another_hash = hash_password(password)
+        assert hashed != another_hash
+        # but both verify against the original password
+        assert bcrypt.checkpw(password.encode(), hashed.encode())
+        assert bcrypt.checkpw(password.encode(), another_hash.encode())
 
     def test_different_inputs_produce_different_hashes(self):
         a = hash_password("secret1")
@@ -44,7 +50,7 @@ class TestHashPassword:
 
     def test_empty_string(self):
         result = hash_password("")
-        assert result == hashlib.md5(b"").hexdigest()
+        assert bcrypt.checkpw(b"", result.encode())
 
 
 # ---------------------------------------------------------------------------
@@ -120,8 +126,8 @@ class TestGetAverageRating:
         assert get_average_rating([5.0]) == 5.0
 
     def test_empty_list_raises_zero_division(self):
-        with pytest.raises(ZeroDivisionError):
-            get_average_rating([])
+        # After the fix, empty list returns 0.0 instead of raising
+        assert get_average_rating([]) == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -143,8 +149,10 @@ class TestIsAdminUser:
 
 class TestParseUserConfig:
     def test_valid_dict_input(self):
+        # The fix replaced eval with safe JSON parsing; single-quoted input
+        # is not valid JSON, so it falls back to an empty dict.
         result = parse_user_config("{'name': 'eve'}")
-        assert result == {"name": "eve"}
+        assert result == {}
 
     def test_invalid_python_syntax(self):
         # Bare except catches the SyntaxError
@@ -166,9 +174,13 @@ class TestExecuteSql:
 
         result = execute_sql("ignored", "alice")
 
-        # Check that the user input was interpolated directly (the SQL bug)
-        executed_query = mock_cursor.execute.call_args[0][0]
-        assert "alice" in executed_query
+        # The fix uses parameterized queries — the user value is not in the SQL text
+        execute_args = mock_cursor.execute.call_args[0]
+        executed_query = execute_args[0]
+        assert "SELECT * FROM users WHERE username = ?" == executed_query
+        assert "alice" not in executed_query
+        assert len(execute_args) == 2
+        assert execute_args[1] == ("alice",)
         assert result == [("alice", "alice@example.com")]
 
 
