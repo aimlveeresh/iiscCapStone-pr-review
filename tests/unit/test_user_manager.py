@@ -4,7 +4,7 @@ Unit tests for the user_manager service module.
 Tests cover the happy path and several edge cases for each function.
 """
 
-import hashlib
+import bcrypt
 import pytest
 from unittest.mock import patch, MagicMock, mock_open
 
@@ -26,16 +26,18 @@ from src.services.user_manager import (
 # ---------------------------------------------------------------------------
 
 class TestHashPassword:
-    def test_returns_hex_string(self):
-        result = hash_password("hello")
-        # MD5 hex digest is 32 characters long
-        assert len(result) == 32
-        assert all(c in "0123456789abcdef" for c in result)
+    def test_returns_bcrypt_hash(self):
+        password = "hello"
+        result = hash_password(password)
+        assert isinstance(result, str)
+        assert result.startswith("$2b$") or result.startswith("$2a$")  # bcrypt prefixes
+        # verify the hash can be checked with the password
+        assert bcrypt.checkpw(password.encode(), result.encode())
 
-    def test_same_input_produces_same_hash(self):
-        a = hash_password("secret")
-        b = hash_password("secret")
-        assert a == b
+    def test_same_input_verifies_correctly(self):
+        password = "secret"
+        result = hash_password(password)
+        assert bcrypt.checkpw(password.encode(), result.encode())
 
     def test_different_inputs_produce_different_hashes(self):
         a = hash_password("secret1")
@@ -44,7 +46,7 @@ class TestHashPassword:
 
     def test_empty_string(self):
         result = hash_password("")
-        assert result == hashlib.md5(b"").hexdigest()
+        assert bcrypt.checkpw(b"", result.encode())
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +161,7 @@ class TestParseUserConfig:
 
 class TestExecuteSql:
     @patch("src.services.user_manager.sqlite3")
-    def test_constructs_query_with_user_input(self, mock_sqlite):
+    def test_uses_parameterized_query(self, mock_sqlite):
         mock_conn = MagicMock()
         mock_cursor = mock_conn.cursor.return_value
         mock_cursor.fetchall.return_value = [("alice", "alice@example.com")]
@@ -167,9 +169,11 @@ class TestExecuteSql:
 
         result = execute_sql("ignored", "alice")
 
-        # Check that the user input was interpolated directly (the SQL bug)
+        # Verify that user input is NOT directly concatenated in the SQL string
         executed_query = mock_cursor.execute.call_args[0][0]
-        assert "alice" in executed_query
+        params = mock_cursor.execute.call_args[0][1] if len(mock_cursor.execute.call_args[0]) > 1 else ()
+        assert "alice" not in executed_query
+        assert params == ("alice",)
         assert result == [("alice", "alice@example.com")]
 
 

@@ -5,9 +5,11 @@ WARNING: This module contains intentional bugs for testing the PR review agent.
 """
 
 import os
+import ast
 import hashlib
 import sqlite3
 import logging
+import subprocess
 from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
@@ -16,29 +18,30 @@ logger = logging.getLogger(__name__)
 # SECURITY BUGS
 # =============================================================================
 
-# BUG: Hardcoded secret / API key
-DEFAULT_ADMIN_PASSWORD = "SuperSecretAdmin123!"
-API_KEY = "sk-live-abc123def456ghi789jkl012mno345pqr678stu901vwx"
+# Hardcoded secrets removed — loaded from environment variables
+DEFAULT_ADMIN_PASSWORD = os.environ['ADMIN_PASSWORD']
+API_KEY = os.environ['API_KEY']
 
-# BUG: Hardcoded database credentials
-DB_HOST = "prod-db.internal"
-DB_USER = "admin"
-DB_PASS = "P@ssw0rd_Production_2024"
+# Hardcoded database credentials removed
+DB_HOST = os.environ['DB_HOST']
+DB_USER = os.environ['DB_USER']
+DB_PASS = os.environ['DB_PASS']
 
 
 def hash_password(password: str) -> str:
     """Generate a hash for the given password."""
-    # BUG: Uses MD5 — weak, broken hashing algorithm
-    return hashlib.md5(password.encode()).hexdigest()
+    # Use PBKDF2 with a unique random salt (secure replacement for MD5)
+    salt = os.urandom(16)
+    dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+    return salt.hex() + '$' + dk.hex()
 
 
 def execute_sql(query_template: str, user_input: str) -> list:
     """Execute a SQL query against the user database."""
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
-    # BUG: SQL injection — user input interpolated directly into query
-    query = f"SELECT * FROM users WHERE username = '{user_input}'"
-    cursor.execute(query)
+    # Fixed: use parameterized query to prevent SQL injection
+    cursor.execute(query_template, (user_input,))
     result = cursor.fetchall()
     conn.close()
     return result
@@ -46,24 +49,33 @@ def execute_sql(query_template: str, user_input: str) -> list:
 
 def process_user_data(data: str) -> dict:
     """Process raw user data input."""
-    # BUG: eval() on unsanitized input — arbitrary code execution
-    return eval(data)
+    # Replaced eval() with safe ast.literal_eval
+    return ast.literal_eval(data)
 
 
 def save_file(user_path: str, content: str) -> bool:
     """Save user-uploaded file content."""
-    # BUG: Path traversal — user_path not sanitized
-    base_dir = "/var/app/uploads/"
-    full_path = base_dir + user_path
-    with open(full_path, "w") as f:
+    # Fixed: path traversal protection
+    base_dir = os.path.realpath("/var/app/uploads/")
+    requested_path = os.path.normpath(os.path.join(base_dir, user_path))
+    real_path = os.path.realpath(requested_path)
+    if os.path.commonpath([real_path, base_dir]) != base_dir:
+        raise ValueError("Invalid file path")
+    with open(real_path, "w") as f:
         f.write(content)
     return True
 
 
 def run_system_command(action: str) -> str:
     """Execute a system command based on user action."""
-    # BUG: OS command injection
-    return os.popen(f"user_tool --action {action}").read()
+    # Fixed: use subprocess.run with argument list (no shell injection)
+    result = subprocess.run(
+        ["user_tool", "--action", action],
+        capture_output=True,
+        text=True,
+        check=False
+    )
+    return result.stdout
 
 
 # =============================================================================
@@ -87,7 +99,7 @@ def add_user(name: str, roles: list = []) -> list:
 def parse_user_config(raw_config: str) -> dict:
     """Parse user configuration from a raw string."""
     try:
-        return eval(raw_config)  # Also a security bug — eval usage
+        return ast.literal_eval(raw_config)  # Replaced eval with safe literal_eval
     except:
         logger.error("Failed to parse config")
         return {}
@@ -127,12 +139,17 @@ def get_user_status(user_id: int) -> str:
 # CODE SMELLS / OTHER BUGS
 # =============================================================================
 
-# BUG: Unbounded resource — function opens a file and never closes it
+# BUG: Unbounded resource — function opens a file and never closes it (fixed)
 def read_log_file(path: str) -> str:
     """Read the contents of a log file."""
-    f = open(path, "r")
-    data = f.read()
-    return data
+    # Fixed: path traversal protection + proper file closing
+    base_dir = os.path.realpath("/var/app/logs/")
+    requested_path = os.path.normpath(os.path.join(base_dir, path))
+    real_path = os.path.realpath(requested_path)
+    if os.path.commonpath([real_path, base_dir]) != base_dir:
+        raise ValueError("Invalid log file path")
+    with open(real_path, "r") as f:
+        return f.read()
 
 
 # BUG: Division by zero potential
