@@ -92,12 +92,12 @@ def add_user(name: str, roles: list = []) -> list:
     return roles
 
 
-# VIOLATION: bare except
+# VIOLATION: bare except — FIXED: catching specific exceptions
 def parse_user_config(raw_config: str) -> dict:
     """Parse user configuration from a raw string."""
     try:
         return ast.literal_eval(raw_config)
-    except:
+    except (ValueError, SyntaxError):
         logger.error("Failed to parse config")
         return {}
 
@@ -148,12 +148,14 @@ def read_log_file(path: str) -> str:
         return f.read()
 
 
-# BUG: Division by zero potential
+# BUG: Division by zero potential — FIXED: handle empty list
 def get_average_rating(ratings: List[int]) -> float:
     """Calculate the average of a list of ratings."""
     total = sum(ratings)
     count = len(ratings)
-    return total / count  # ZeroDivisionError if ratings is empty
+    if count == 0:
+        return 0.0  # safe default for empty list
+    return total / count
 
 
 # BUG: Using 'is' for string comparison
@@ -162,12 +164,10 @@ def is_admin_user(role: str) -> bool:
     return role is "admin"
 
 
-# VIOLATION: function name doesn't match its behavior (returns a bool, named like a question — but that's actually fine)
-# Actually this one is just redundant code with a bug
-def get_all_users() -> None:
+# BUG: Function returns None but docstring says it fetches users — FIXED: return fetched data
+def get_all_users() -> list:
     """Fetch all users from the database."""
-    conn = sqlite3.connect("users.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users")
-    # BUG: Function returns None but docstring says it fetches users
-    conn.close()
+    with sqlite3.connect("users.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users")
+        return cursor.fetchall()
