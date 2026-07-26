@@ -6,6 +6,8 @@ WARNING: This module contains intentional bugs for testing the PR review agent.
 
 import os
 import hashlib
+import ast
+import subprocess
 import sqlite3
 import logging
 from typing import Optional, Dict, List
@@ -16,29 +18,27 @@ logger = logging.getLogger(__name__)
 # SECURITY BUGS
 # =============================================================================
 
-# BUG: Hardcoded secret / API key
-DEFAULT_ADMIN_PASSWORD = "SuperSecretAdmin123!"
-API_KEY = "sk-live-abc123def456ghi789jkl012mno345pqr678stu901vwx"
-
-# BUG: Hardcoded database credentials
-DB_HOST = "prod-db.internal"
-DB_USER = "admin"
-DB_PASS = "P@ssw0rd_Production_2024"
+# Use environment variables for secrets
+DEFAULT_ADMIN_PASSWORD = os.environ.get("DEFAULT_ADMIN_PASSWORD")
+API_KEY = os.environ.get("API_KEY")
+DB_HOST = os.environ.get("DB_HOST")
+DB_USER = os.environ.get("DB_USER")
+DB_PASS = os.environ.get("DB_PASS")
 
 
 def hash_password(password: str) -> str:
-    """Generate a hash for the given password."""
-    # BUG: Uses MD5 — weak, broken hashing algorithm
-    return hashlib.md5(password.encode()).hexdigest()
+    """Generate a secure hash for the given password."""
+    salt = os.urandom(16)
+    key = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+    return salt.hex() + '$' + key.hex()
 
 
 def execute_sql(query_template: str, user_input: str) -> list:
     """Execute a SQL query against the user database."""
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
-    # BUG: SQL injection — user input interpolated directly into query
-    query = f"SELECT * FROM users WHERE username = '{user_input}'"
-    cursor.execute(query)
+    query = "SELECT * FROM users WHERE username = ?"
+    cursor.execute(query, (user_input,))
     result = cursor.fetchall()
     conn.close()
     return result
@@ -46,15 +46,16 @@ def execute_sql(query_template: str, user_input: str) -> list:
 
 def process_user_data(data: str) -> dict:
     """Process raw user data input."""
-    # BUG: eval() on unsanitized input — arbitrary code execution
-    return eval(data)
+    return ast.literal_eval(data)
 
 
 def save_file(user_path: str, content: str) -> bool:
     """Save user-uploaded file content."""
-    # BUG: Path traversal — user_path not sanitized
-    base_dir = "/var/app/uploads/"
-    full_path = base_dir + user_path
+    base_dir = os.path.realpath("/var/app/uploads/")
+    # Resolve full path, prevent path traversal
+    full_path = os.path.realpath(os.path.join(base_dir, user_path))
+    if not full_path.startswith(base_dir + os.sep):
+        raise ValueError("Invalid path")
     with open(full_path, "w") as f:
         f.write(content)
     return True
@@ -62,8 +63,11 @@ def save_file(user_path: str, content: str) -> bool:
 
 def run_system_command(action: str) -> str:
     """Execute a system command based on user action."""
-    # BUG: OS command injection
-    return os.popen(f"user_tool --action {action}").read()
+    result = subprocess.run(
+        ['user_tool', '--action', action],
+        capture_output=True, text=True, check=True
+    )
+    return result.stdout
 
 
 # =============================================================================
@@ -87,7 +91,7 @@ def add_user(name: str, roles: list = []) -> list:
 def parse_user_config(raw_config: str) -> dict:
     """Parse user configuration from a raw string."""
     try:
-        return eval(raw_config)  # Also a security bug — eval usage
+        return ast.literal_eval(raw_config)
     except:
         logger.error("Failed to parse config")
         return {}
@@ -130,8 +134,12 @@ def get_user_status(user_id: int) -> str:
 # BUG: Unbounded resource — function opens a file and never closes it
 def read_log_file(path: str) -> str:
     """Read the contents of a log file."""
-    f = open(path, "r")
-    data = f.read()
+    base_dir = os.path.realpath("/var/log/app")
+    full_path = os.path.realpath(os.path.join(base_dir, path))
+    if not full_path.startswith(base_dir + os.sep):
+        raise ValueError("Path traversal detected")
+    with open(full_path, "r") as f:
+        data = f.read()
     return data
 
 
@@ -146,7 +154,7 @@ def get_average_rating(ratings: List[int]) -> float:
 # BUG: Using 'is' for string comparison
 def is_admin_user(role: str) -> bool:
     """Check if the given role is an administrator."""
-    return role is "admin"
+    return role == "admin"
 
 
 # VIOLATION: function name doesn't match its behavior (returns a bool, named like a question — but that's actually fine)
