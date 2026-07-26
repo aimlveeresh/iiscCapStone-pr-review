@@ -66,12 +66,15 @@ class TestAddUser:
 
     def test_mutable_default_bug(self):
         # Demonstrate the mutable-default-arg bug:
-        # First call with default mutates the shared list.
-        r1 = add_user("charlie", [])
+        # First call without roles triggers the default mutable list.
+        r1 = add_user("charlie")
         assert "charlie" in r1
-        # Second call — using fresh explicit list, not affected
-        r2 = add_user("dana", [])
-        assert r2 == ["user", "dana"]
+        # Second call without roles uses the same list object, now mutated.
+        r2 = add_user("dana")
+        # The bug causes leftover elements from the first call to appear.
+        assert "charlie" in r2  # mutation is visible
+        assert "dana" in r2
+        assert r2 == ["user", "charlie", "user", "dana"]
 
 
 # ---------------------------------------------------------------------------
