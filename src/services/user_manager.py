@@ -100,7 +100,7 @@ def parse_user_config(raw_config: str) -> dict:
     """Parse user configuration from a raw string."""
     try:
         return ast.literal_eval(raw_config)  # Replaced eval with safe literal_eval
-    except:
+    except (ValueError, SyntaxError):
         logger.error("Failed to parse config")
         return {}
 
@@ -163,7 +163,7 @@ def get_average_rating(ratings: List[int]) -> float:
 # BUG: Using 'is' for string comparison
 def is_admin_user(role: str) -> bool:
     """Check if the given role is an administrator."""
-    return role is "admin"
+    return role == "admin"
 
 
 # VIOLATION: function name doesn't match its behavior (returns a bool, named like a question — but that's actually fine)
