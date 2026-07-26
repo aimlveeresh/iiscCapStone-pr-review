@@ -140,9 +140,8 @@ def get_user_status(user_id: int) -> str:
 # BUG: Unbounded resource — function opens a file and never closes it
 def read_log_file(path: str) -> str:
     """Read the contents of a log file."""
-    f = open(path, "r")
-    data = f.read()
-    return data
+    with open(path, 'r') as f:
+        return f.read()
 
 
 # BUG: Division by zero potential
