@@ -64,17 +64,15 @@ class TestAddUser:
         result = add_user("bob", [])
         assert result == ["user", "bob"]
 
-    def test_mutable_default_bug(self):
-        # Demonstrate the mutable-default-arg bug:
-        # First call without roles triggers the default mutable list.
-        r1 = add_user("charlie")
-        assert "charlie" in r1
-        # Second call without roles uses the same list object, now mutated.
-        r2 = add_user("dana")
-        # The bug causes leftover elements from the first call to appear.
-        assert "charlie" in r2  # mutation is visible
-        assert "dana" in r2
-        assert r2 == ["user", "charlie", "user", "dana"]
+    def test_explicit_empty_roles_does_not_accumulate(self):
+        # Regression test: ensure that providing an explicit empty list
+        # each time does not cause accumulation across calls.
+        result1 = add_user("charlie", [])
+        assert result1 == ["user", "charlie"]
+        result2 = add_user("dana", [])
+        assert result2 == ["user", "dana"]
+        # Verify first result wasn't altered by second call
+        assert result1 == ["user", "charlie"]
 
 
 # ---------------------------------------------------------------------------

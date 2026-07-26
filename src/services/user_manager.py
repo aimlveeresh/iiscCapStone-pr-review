@@ -101,13 +101,14 @@ userEmailDomain = "@company.com"
 # VIOLATION: mutable default argument - FIXED: use None and initialize
 from typing import List
 
-def add_user(name: str, roles: list = None) -> list:
-    """Add a user with the given roles."""
+def append_user_to_roles(name: str, roles: Optional[List[str]] = None) -> list:
+    """Append a user and the default 'user' role to the given roles list, returning a new list."""
     if roles is None:
         roles = []
-    roles.append("user")
-    roles.append(name)
-    return roles
+    result = roles.copy()  # avoid mutating the original list
+    result.append("user")
+    result.append(name)
+    return result
 
 
 # VIOLATION: bare except - FIXED: replaced eval with json.loads and catch specific exceptions
@@ -199,10 +200,11 @@ def is_admin_user(role: str) -> bool:
     return role == "admin"
 
 
-# BUG: Function returns None but docstring says it fetches users; kept as-is to preserve public contract.
-def get_all_users() -> None:
+# BUG: Function returned None but docstring promised data; now actually fetches and returns users.
+def get_all_users() -> list:
     """Fetch all users from the database."""
-    conn = sqlite3.connect("users.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users")
-    conn.close()
+    with sqlite3.connect("users.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users")
+        users = cursor.fetchall()
+    return users
