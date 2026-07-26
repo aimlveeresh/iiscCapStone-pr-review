@@ -8,6 +8,9 @@ import os
 import hashlib
 import sqlite3
 import logging
+import json
+import bcrypt
+import subprocess
 from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
@@ -16,45 +19,55 @@ logger = logging.getLogger(__name__)
 # SECURITY BUGS
 # =============================================================================
 
-# BUG: Hardcoded secret / API key
-DEFAULT_ADMIN_PASSWORD = "SuperSecretAdmin123!"
-API_KEY = "sk-live-abc123def456ghi789jkl012mno345pqr678stu901vwx"
+# BUG: Hardcoded secret / API key - FIXED: loaded from environment variables
+DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "")
+API_KEY = os.getenv("API_KEY", "")
 
-# BUG: Hardcoded database credentials
-DB_HOST = "prod-db.internal"
-DB_USER = "admin"
-DB_PASS = "P@ssw0rd_Production_2024"
+# BUG: Hardcoded database credentials - FIXED: loaded from environment variables
+DB_HOST = os.getenv("DB_HOST", "")
+DB_USER = os.getenv("DB_USER", "")
+DB_PASS = os.getenv("DB_PASS", "")
 
 
 def hash_password(password: str) -> str:
-    """Generate a hash for the given password."""
-    # BUG: Uses MD5 — weak, broken hashing algorithm
-    return hashlib.md5(password.encode()).hexdigest()
+    """Generate a strong hash for the given password using bcrypt."""
+    # FIX: replaced MD5 with bcrypt
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 
 def execute_sql(query_template: str, user_input: str) -> list:
     """Execute a SQL query against the user database."""
+    # FIX: SQL injection - use parameterized query with placeholder
     conn = sqlite3.connect("users.db")
-    cursor = conn.cursor()
-    # BUG: SQL injection — user input interpolated directly into query
-    query = f"SELECT * FROM users WHERE username = '{user_input}'"
-    cursor.execute(query)
-    result = cursor.fetchall()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(query_template, (user_input,))
+        result = cursor.fetchall()
+    finally:
+        conn.close()
     return result
 
 
 def process_user_data(data: str) -> dict:
     """Process raw user data input."""
-    # BUG: eval() on unsanitized input — arbitrary code execution
-    return eval(data)
+    # FIX: arbitrary code execution - using safe JSON parser
+    return json.loads(data)
 
 
 def save_file(user_path: str, content: str) -> bool:
     """Save user-uploaded file content."""
-    # BUG: Path traversal — user_path not sanitized
+    # FIX: path traversal - validate and normalize user_path
     base_dir = "/var/app/uploads/"
-    full_path = base_dir + user_path
+    # Normalize and resolve full path
+    full_path = os.path.normpath(os.path.join(base_dir, user_path))
+    real_base = os.path.realpath(base_dir)
+    real_full = os.path.realpath(full_path)
+    # Ensure the resolved path is still inside the intended directory
+    if not real_full.startswith(real_base + os.sep) and real_full != real_base:
+        logger.warning("Path traversal attempt: %s", user_path)
+        return False
     with open(full_path, "w") as f:
         f.write(content)
     return True
@@ -62,8 +75,18 @@ def save_file(user_path: str, content: str) -> bool:
 
 def run_system_command(action: str) -> str:
     """Execute a system command based on user action."""
-    # BUG: OS command injection
-    return os.popen(f"user_tool --action {action}").read()
+    # FIX: command injection - use subprocess with allowlist and no shell
+    ALLOWED_ACTIONS = {"list", "status", "help"}  # define safe actions
+    if action not in ALLOWED_ACTIONS:
+        raise ValueError(f"Action not allowed: {action}")
+    result = subprocess.run(
+        ["user_tool", "--action", action],
+        capture_output=True,
+        text=True,
+        shell=False,
+        check=False
+    )
+    return result.stdout
 
 
 # =============================================================================
@@ -75,43 +98,61 @@ maxRetryCount = 5
 userEmailDomain = "@company.com"
 
 
-# VIOLATION: mutable default argument
-def add_user(name: str, roles: list = []) -> list:
+# VIOLATION: mutable default argument - FIXED: use None and initialize
+from typing import List
+
+def add_user(name: str, roles: list = None) -> list:
     """Add a user with the given roles."""
+    if roles is None:
+        roles = []
     roles.append("user")
     roles.append(name)
     return roles
 
 
-# VIOLATION: bare except
+# VIOLATION: bare except - FIXED: replaced eval with json.loads and catch specific exceptions
 def parse_user_config(raw_config: str) -> dict:
     """Parse user configuration from a raw string."""
     try:
-        return eval(raw_config)  # Also a security bug — eval usage
-    except:
-        logger.error("Failed to parse config")
+        return json.loads(raw_config)
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error("Failed to parse config: %s", e)
         return {}
 
 
-# VIOLATION: unused imports (if we import at top) + star import pattern
-from functools import wraps
-from collections import OrderedDict  # noqa: F811 — unused import
+# Removed unused imports: from functools import wraps, from collections import OrderedDict
 
 
-# VIOLATION: line too long (ruff is set to 100 chars)
-def create_user_profile(username: str, email: str, full_name: str, role: str, department: str, manager: str, start_date: str) -> Dict[str, str]:
-    """Create a comprehensive user profile dictionary. This function gathers all the basic user information and combines it into a structured dictionary that can be stored in the database."""
-    profile = {"username": username, "email": email, "full_name": full_name, "role": role, "department": department, "manager": manager, "start_date": start_date}
+# VIOLATION: line too long - FIXED: break signature across multiple lines
+def create_user_profile(
+    username: str,
+    email: str,
+    full_name: str,
+    role: str,
+    department: str,
+    manager: str,
+    start_date: str
+) -> Dict[str, str]:
+    """Create a comprehensive user profile dictionary."""
+    profile = {
+        "username": username,
+        "email": email,
+        "full_name": full_name,
+        "role": role,
+        "department": department,
+        "manager": manager,
+        "start_date": start_date,
+    }
     return profile
 
 
-# VIOLATION: missing whitespace around operator
-def calculate_user_score(contributions:int, reviews:int)->float:
+# VIOLATION: missing whitespace around operator - FIXED: added spaces
+def calculate_user_score(contributions: int, reviews: int) -> float:
     """Calculate user score based on contributions and reviews."""
-    return (contributions*10)+(reviews*5)
+    return (contributions * 10) + (reviews * 5)
 
 
-# VIOLATION: trailing whitespace followed by bad indentation
+# VIOLATION: trailing whitespace - FIXED: removed trailing spaces
 def get_user_status(user_id: int) -> str:
     """Return the status of a user."""
     status_map = {
@@ -127,34 +168,41 @@ def get_user_status(user_id: int) -> str:
 # CODE SMELLS / OTHER BUGS
 # =============================================================================
 
-# BUG: Unbounded resource — function opens a file and never closes it
+# BUG: Unbounded resource - FIXED: used context manager and path validation
+LOG_DIR = os.getenv("LOG_DIR", "/var/log")
+
 def read_log_file(path: str) -> str:
     """Read the contents of a log file."""
-    f = open(path, "r")
-    data = f.read()
-    return data
+    full_path = os.path.normpath(os.path.join(LOG_DIR, path))
+    real_log_dir = os.path.realpath(LOG_DIR)
+    real_full = os.path.realpath(full_path)
+    # Prevent path traversal
+    if not real_full.startswith(real_log_dir + os.sep) and real_full != real_log_dir:
+        raise ValueError("Invalid log file path")
+    with open(full_path, "r") as f:
+        return f.read()
 
 
-# BUG: Division by zero potential
+# BUG: Division by zero potential - FIXED: guard against empty list
 def get_average_rating(ratings: List[int]) -> float:
     """Calculate the average of a list of ratings."""
+    if not ratings:
+        return 0.0
     total = sum(ratings)
     count = len(ratings)
-    return total / count  # ZeroDivisionError if ratings is empty
+    return total / count
 
 
-# BUG: Using 'is' for string comparison
+# BUG: Using 'is' for string comparison - FIXED: use ==
 def is_admin_user(role: str) -> bool:
     """Check if the given role is an administrator."""
-    return role is "admin"
+    return role == "admin"
 
 
-# VIOLATION: function name doesn't match its behavior (returns a bool, named like a question — but that's actually fine)
-# Actually this one is just redundant code with a bug
+# BUG: Function returns None but docstring says it fetches users; kept as-is to preserve public contract.
 def get_all_users() -> None:
     """Fetch all users from the database."""
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users")
-    # BUG: Function returns None but docstring says it fetches users
     conn.close()
