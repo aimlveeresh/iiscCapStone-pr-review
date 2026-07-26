@@ -28,14 +28,16 @@ from src.services.user_manager import (
 class TestHashPassword:
     def test_returns_hex_string(self):
         result = hash_password("hello")
-        # MD5 hex digest is 32 characters long
-        assert len(result) == 32
-        assert all(c in "0123456789abcdef" for c in result)
+        # New format: 32-char hex + '$' + 64-char hex (salted)
+        assert len(result) == 97
+        assert result.count('$') == 1
+        assert all(c in "0123456789abcdef" for c in result.replace('$', ''))
 
     def test_same_input_produces_same_hash(self):
+        # After the fix, salting causes different hashes for the same input
         a = hash_password("secret")
         b = hash_password("secret")
-        assert a == b
+        assert a != b
 
     def test_different_inputs_produce_different_hashes(self):
         a = hash_password("secret1")
@@ -44,7 +46,10 @@ class TestHashPassword:
 
     def test_empty_string(self):
         result = hash_password("")
-        assert result == hashlib.md5(b"").hexdigest()
+        # Now returns a salted hash, not the raw MD5 of the empty string
+        assert len(result) == 97
+        assert '$' in result
+        assert result != hashlib.md5(b"").hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -120,8 +125,8 @@ class TestGetAverageRating:
         assert get_average_rating([5.0]) == 5.0
 
     def test_empty_list_raises_zero_division(self):
-        with pytest.raises(ZeroDivisionError):
-            get_average_rating([])
+        # The fix now handles empty list without dividing by zero
+        assert get_average_rating([]) == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -167,9 +172,11 @@ class TestExecuteSql:
 
         result = execute_sql("ignored", "alice")
 
-        # Check that the user input was interpolated directly (the SQL bug)
+        # After the fix, the query uses parameterized placeholders
         executed_query = mock_cursor.execute.call_args[0][0]
-        assert "alice" in executed_query
+        assert "?" in executed_query
+        executed_params = mock_cursor.execute.call_args[0][1]
+        assert executed_params == ("alice",)
         assert result == [("alice", "alice@example.com")]
 
 
