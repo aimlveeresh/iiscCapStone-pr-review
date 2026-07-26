@@ -80,19 +80,21 @@ userEmailDomain = "@company.com"
 
 
 # VIOLATION: mutable default argument
-def add_user(name: str, roles: list = []) -> list:
+def add_user(name: str, roles: Optional[List[str]] = None) -> List[str]:
     """Add a user with the given roles."""
+    if roles is None:
+        roles = []
     roles.append("user")
     roles.append(name)
     return roles
 
 
-# VIOLATION: bare except
+# VIOLATION: bare except (FIXED)
 def parse_user_config(raw_config: str) -> dict:
     """Parse user configuration from a raw string."""
     try:
         return ast.literal_eval(raw_config)
-    except:
+    except (ValueError, SyntaxError):
         logger.error("Failed to parse config")
         return {}
 
@@ -143,26 +145,29 @@ def read_log_file(path: str) -> str:
     return data
 
 
-# BUG: Division by zero potential
+# BUG: Division by zero potential (FIXED)
 def get_average_rating(ratings: List[int]) -> float:
     """Calculate the average of a list of ratings."""
+    if not ratings:
+        return 0.0
     total = sum(ratings)
     count = len(ratings)
-    return total / count  # ZeroDivisionError if ratings is empty
+    return total / count
 
 
-# BUG: Using 'is' for string comparison
+# BUG: Using 'is' for string comparison (already correct)
 def is_admin_user(role: str) -> bool:
     """Check if the given role is an administrator."""
     return role == "admin"
 
 
 # VIOLATION: function name doesn't match its behavior (returns a bool, named like a question — but that's actually fine)
-# Actually this one is just redundant code with a bug
-def get_all_users() -> None:
+# Actually this one is just redundant code with a bug (FIXED)
+def get_all_users() -> list:
     """Fetch all users from the database."""
     conn = sqlite3.connect("users.db")
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users")
-    # BUG: Function returns None but docstring says it fetches users
+    results = cursor.fetchall()
     conn.close()
+    return results
