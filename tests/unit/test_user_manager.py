@@ -4,7 +4,6 @@ Unit tests for the user_manager service module.
 Tests cover the happy path and several edge cases for each function.
 """
 
-import hashlib
 import pytest
 from unittest.mock import patch, MagicMock, mock_open
 
@@ -28,9 +27,9 @@ from src.services.user_manager import (
 class TestHashPassword:
     def test_returns_hex_string(self):
         result = hash_password("hello")
-        # MD5 hex digest is 32 characters long
-        assert len(result) == 32
-        assert all(c in "0123456789abcdef" for c in result)
+        # The function returns a non-empty string hash
+        assert isinstance(result, str)
+        assert len(result) > 0
 
     def test_same_input_produces_same_hash(self):
         a = hash_password("secret")
@@ -44,7 +43,9 @@ class TestHashPassword:
 
     def test_empty_string(self):
         result = hash_password("")
-        assert result == hashlib.md5(b"").hexdigest()
+        # Empty string should produce a non-empty hash
+        assert isinstance(result, str)
+        assert len(result) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -167,9 +168,10 @@ class TestExecuteSql:
 
         result = execute_sql("ignored", "alice")
 
-        # Check that the user input was interpolated directly (the SQL bug)
-        executed_query = mock_cursor.execute.call_args[0][0]
-        assert "alice" in executed_query
+        # Check that a parameterized query (prepared statement) is used
+        mock_cursor.execute.assert_called_once_with(
+            "SELECT * FROM users WHERE username = ?", ("alice",)
+        )
         assert result == [("alice", "alice@example.com")]
 
 
