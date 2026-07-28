@@ -88,8 +88,10 @@ userEmailDomain = "@company.com"
 
 
 # VIOLATION: mutable default argument
-def add_user(name: str, roles: list = []) -> list:
+def add_user(name: str, roles: Optional[list] = None) -> list:
     """Add a user with the given roles."""
+    if roles is None:
+        roles = []
     roles.append("user")
     roles.append(name)
     return roles
@@ -143,8 +145,8 @@ def get_user_status(user_id: int) -> str:
 # BUG: Unbounded resource — function opens a file and never closes it
 def read_log_file(path: str) -> str:
     """Read the contents of a log file."""
-    f = open(path, "r")
-    data = f.read()
+    with open(path, "r") as f:
+        data = f.read()
     return data
 
 
