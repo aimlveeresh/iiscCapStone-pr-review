@@ -4,7 +4,6 @@ Unit tests for the user_manager service module.
 Tests cover the happy path and several edge cases for each function.
 """
 
-import hashlib
 import pytest
 from unittest.mock import patch, MagicMock, mock_open
 
@@ -26,16 +25,20 @@ from src.services.user_manager import (
 # ---------------------------------------------------------------------------
 
 class TestHashPassword:
-    def test_returns_hex_string(self):
+    def test_returns_secure_hash_string(self):
+        """A strong password hash should not look like an MD5 hex digest."""
         result = hash_password("hello")
-        # MD5 hex digest is 32 characters long
-        assert len(result) == 32
-        assert all(c in "0123456789abcdef" for c in result)
+        # bcrypt hashes are 60 characters long and contain '$'
+        assert isinstance(result, str)
+        assert len(result) == 60
+        assert result.startswith("$2b$")
 
-    def test_same_input_produces_same_hash(self):
+    def test_same_input_produces_different_hashes_with_random_salt(self):
+        """Secure hashing with per‑call salt yields different outputs."""
         a = hash_password("secret")
         b = hash_password("secret")
-        assert a == b
+        # Two calls should produce distinct hashes because of the random salt
+        assert a != b
 
     def test_different_inputs_produce_different_hashes(self):
         a = hash_password("secret1")
@@ -44,7 +47,9 @@ class TestHashPassword:
 
     def test_empty_string(self):
         result = hash_password("")
-        assert result == hashlib.md5(b"").hexdigest()
+        assert isinstance(result, str)
+        assert len(result) == 60
+        assert result.startswith("$2b$")
 
 
 # ---------------------------------------------------------------------------
@@ -144,11 +149,11 @@ class TestIsAdminUser:
 
 class TestParseUserConfig:
     def test_valid_dict_input(self):
-        result = parse_user_config("{'name': 'eve'}")
+        result = parse_user_config('{"name": "eve"}')
         assert result == {"name": "eve"}
 
     def test_invalid_python_syntax(self):
-        # Bare except catches the SyntaxError
+        # Bare except catches the SyntaxError (or JSONDecodeError after fix)
         result = parse_user_config("not valid {{")
         assert result == {}
 
@@ -159,7 +164,7 @@ class TestParseUserConfig:
 
 class TestExecuteSql:
     @patch("src.services.user_manager.sqlite3")
-    def test_constructs_query_with_user_input(self, mock_sqlite):
+    def test_uses_parameterized_query(self, mock_sqlite):
         mock_conn = MagicMock()
         mock_cursor = mock_conn.cursor.return_value
         mock_cursor.fetchall.return_value = [("alice", "alice@example.com")]
@@ -167,9 +172,10 @@ class TestExecuteSql:
 
         result = execute_sql("ignored", "alice")
 
-        # Check that the user input was interpolated directly (the SQL bug)
-        executed_query = mock_cursor.execute.call_args[0][0]
-        assert "alice" in executed_query
+        # Verify that a parameterized query was used, not string interpolation
+        mock_cursor.execute.assert_called_once_with(
+            "SELECT * FROM users WHERE username = ?", ("alice",)
+        )
         assert result == [("alice", "alice@example.com")]
 
 
