@@ -4,7 +4,7 @@ Unit tests for the user_manager service module.
 Tests cover the happy path and several edge cases for each function.
 """
 
-import hashlib
+import bcrypt
 import pytest
 from unittest.mock import patch, MagicMock, mock_open
 
@@ -28,14 +28,16 @@ from src.services.user_manager import (
 class TestHashPassword:
     def test_returns_hex_string(self):
         result = hash_password("hello")
-        # MD5 hex digest is 32 characters long
-        assert len(result) == 32
-        assert all(c in "0123456789abcdef" for c in result)
+        # bcrypt hash is a 60-character string
+        assert isinstance(result, str)
+        assert len(result) == 60
+        assert result.startswith("$2b$")
 
     def test_same_input_produces_same_hash(self):
-        a = hash_password("secret")
-        b = hash_password("secret")
-        assert a == b
+        # With strong salted hashing, the same input can be verified
+        password = "secret"
+        hashed = hash_password(password)
+        assert bcrypt.checkpw(password.encode(), hashed.encode()) is True
 
     def test_different_inputs_produce_different_hashes(self):
         a = hash_password("secret1")
@@ -44,7 +46,8 @@ class TestHashPassword:
 
     def test_empty_string(self):
         result = hash_password("")
-        assert result == hashlib.md5(b"").hexdigest()
+        # should still produce a valid bcrypt hash
+        assert bcrypt.checkpw(b"", result.encode()) is True
 
 
 # ---------------------------------------------------------------------------
@@ -144,11 +147,12 @@ class TestIsAdminUser:
 
 class TestParseUserConfig:
     def test_valid_dict_input(self):
-        result = parse_user_config("{'name': 'eve'}")
+        # Now expects safe JSON input, not Python string evaluated with eval
+        result = parse_user_config('{"name": "eve"}')
         assert result == {"name": "eve"}
 
     def test_invalid_python_syntax(self):
-        # Bare except catches the SyntaxError
+        # Malformed JSON should still result in an empty dict (or error handled safely)
         result = parse_user_config("not valid {{")
         assert result == {}
 
@@ -167,9 +171,12 @@ class TestExecuteSql:
 
         result = execute_sql("ignored", "alice")
 
-        # Check that the user input was interpolated directly (the SQL bug)
-        executed_query = mock_cursor.execute.call_args[0][0]
-        assert "alice" in executed_query
+        # Parameterized query must NOT embed user input directly
+        execute_args = mock_cursor.execute.call_args[0]
+        query, params = execute_args
+        assert "alice" not in query, "User input was concatenated into SQL"
+        assert "?" in query, "Query should use parameter placeholders"
+        assert params == ("alice",)
         assert result == [("alice", "alice@example.com")]
 
 
