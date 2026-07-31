@@ -4,7 +4,7 @@ Unit tests for the user_manager service module.
 Tests cover the happy path and several edge cases for each function.
 """
 
-import hashlib
+import re
 import pytest
 from unittest.mock import patch, MagicMock, mock_open
 
@@ -26,16 +26,17 @@ from src.services.user_manager import (
 # ---------------------------------------------------------------------------
 
 class TestHashPassword:
-    def test_returns_hex_string(self):
+    def test_returns_bcrypt_hash(self):
         result = hash_password("hello")
-        # MD5 hex digest is 32 characters long
-        assert len(result) == 32
-        assert all(c in "0123456789abcdef" for c in result)
+        # bcrypt hashes start with $2a$, $2b$ or $2y$ and are 60 chars long
+        assert result.startswith("$2")
+        assert len(result) == 60
 
-    def test_same_input_produces_same_hash(self):
+    def test_same_input_produces_different_hashes(self):
+        # bcrypt includes a random salt, so two calls produce different hashes
         a = hash_password("secret")
         b = hash_password("secret")
-        assert a == b
+        assert a != b
 
     def test_different_inputs_produce_different_hashes(self):
         a = hash_password("secret1")
@@ -44,7 +45,8 @@ class TestHashPassword:
 
     def test_empty_string(self):
         result = hash_password("")
-        assert result == hashlib.md5(b"").hexdigest()
+        assert result.startswith("$2")
+        assert len(result) == 60
 
 
 # ---------------------------------------------------------------------------
@@ -144,11 +146,12 @@ class TestIsAdminUser:
 
 class TestParseUserConfig:
     def test_valid_dict_input(self):
-        result = parse_user_config("{'name': 'eve'}")
+        # After fix, function uses json.loads, which requires double-quoted strings
+        result = parse_user_config('{"name": "eve"}')
         assert result == {"name": "eve"}
 
-    def test_invalid_python_syntax(self):
-        # Bare except catches the SyntaxError
+    def test_invalid_json_syntax(self):
+        # Invalid JSON raises an error and returns an empty dict
         result = parse_user_config("not valid {{")
         assert result == {}
 
@@ -159,7 +162,7 @@ class TestParseUserConfig:
 
 class TestExecuteSql:
     @patch("src.services.user_manager.sqlite3")
-    def test_constructs_query_with_user_input(self, mock_sqlite):
+    def test_uses_parameterized_query(self, mock_sqlite):
         mock_conn = MagicMock()
         mock_cursor = mock_conn.cursor.return_value
         mock_cursor.fetchall.return_value = [("alice", "alice@example.com")]
@@ -167,9 +170,14 @@ class TestExecuteSql:
 
         result = execute_sql("ignored", "alice")
 
-        # Check that the user input was interpolated directly (the SQL bug)
+        # The query must not contain the user input directly
         executed_query = mock_cursor.execute.call_args[0][0]
-        assert "alice" in executed_query
+        assert "alice" not in executed_query
+        # Query should use a parameter placeholder
+        assert "?" in executed_query
+        # Parameters must be passed as a separate tuple
+        parameters = mock_cursor.execute.call_args[0][1]
+        assert parameters == ("alice",)
         assert result == [("alice", "alice@example.com")]
 
 
